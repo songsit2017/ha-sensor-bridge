@@ -39,6 +39,22 @@ object GyroReader {
     }
 }
 
+/** Strength of the surrounding magnetic field in µT (about 25-65 in open air; magnets spike it). */
+object MagneticReader {
+    fun samples(context: Context): Flow<Float> = callbackFlow {
+        val sm = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val sensor = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD) ?: run { close(); return@callbackFlow }
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(e: SensorEvent) {
+                trySend(sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]))
+            }
+            override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) = Unit
+        }
+        sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+        awaitClose { sm.unregisterListener(listener) }
+    }
+}
+
 object HeadingReader {
     private val names = listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 

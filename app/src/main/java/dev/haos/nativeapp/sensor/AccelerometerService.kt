@@ -50,6 +50,9 @@ class AccelerometerService : Service() {
     @Volatile private var gyro: Gyro? = null
     @Volatile private var heading: Float? = null
     @Volatile private var soundDb: Float? = null
+    @Volatile private var magnetic: Float? = null
+    @Volatile private var posture: String? = null
+    private val vibrationMeter = VibrationMeter()
     private var enabled: Set<SensorGroup> = emptySet()
     private lateinit var events: MotionEvents
 
@@ -83,10 +86,16 @@ class AccelerometerService : Service() {
                 latest = s
                 peakLinear = max(peakLinear, s.linear)
                 events.process(s)
+                if (SensorGroup.VIBRATION in enabled) vibrationMeter.add(s.linear)
+                if (SensorGroup.POSTURE in enabled) {
+                    val next = Posture.of(s, posture)
+                    if (next != posture) { posture = next; sendNow.trySend(Unit) }
+                }
             }
         }
         if (SensorGroup.GYRO in enabled) scope.launch { GyroReader.samples(this@AccelerometerService).collect { gyro = it } }
         if (SensorGroup.COMPASS in enabled) scope.launch { HeadingReader.samples(this@AccelerometerService).collect { heading = it } }
+        if (SensorGroup.MAGNETIC in enabled) scope.launch { MagneticReader.samples(this@AccelerometerService).collect { magnetic = it } }
         if (useMic) scope.launch { SoundMeter.levels().collect { soundDb = it } }
         scope.launch { reportLoop(settings) }
         return START_STICKY
@@ -116,6 +125,9 @@ class AccelerometerService : Service() {
                             gyro = gyro,
                             heading = heading,
                             soundDb = soundDb,
+                            magneticUt = magnetic,
+                            vibration = if (SensorGroup.VIBRATION in enabled) vibrationMeter.take() else null,
+                            posture = posture,
                             enabled = enabled,
                         ),
                     )

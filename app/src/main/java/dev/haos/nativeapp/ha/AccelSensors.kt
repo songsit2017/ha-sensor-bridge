@@ -25,6 +25,9 @@ data class SensorReading(
     val gyro: Gyro? = null,
     val heading: Float? = null,
     val soundDb: Float? = null,
+    val magneticUt: Float? = null,
+    val vibration: Float? = null,
+    val posture: String? = null,
     val enabled: Set<SensorGroup> = SensorGroup.values().toSet(),
 )
 
@@ -34,7 +37,7 @@ data class SensorReading(
  */
 object AccelSensors {
     /** Bump whenever a sensor is added or changed so existing installs re-register. */
-    const val VERSION = 3
+    const val VERSION = 4
 
     private data class Def(
         val key: String,
@@ -65,6 +68,9 @@ object AccelSensors {
         Def("double_tap", "Double tap", type = "binary_sensor", icon = "mdi:gesture-double-tap"),
         Def("pick_up", "Picked up", type = "binary_sensor", icon = "mdi:hand-back-right"),
         Def("fall", "Fall", type = "binary_sensor", icon = "mdi:arrow-down-bold-box", deviceClass = "problem"),
+        Def("magnetic_field", "Magnetic field", icon = "mdi:magnet", unit = "µT"),
+        Def("vibration", "Vibration level", icon = "mdi:vibrate", unit = "m/s²"),
+        Def("posture", "Device posture", icon = "mdi:phone-rotate-portrait", text = true),
         Def("sound_level", "Sound level", icon = "mdi:microphone", unit = "dB"),
     )
 
@@ -82,7 +88,7 @@ object AccelSensors {
                 if (d.type == "binary_sensor") {
                     put("state", false)
                 } else if (d.text) {
-                    put("state", "N")
+                    put("state", "unknown")
                 } else {
                     put("state", 0.0)
                     put("state_class", "measurement")
@@ -124,6 +130,9 @@ object AccelSensors {
                 add(number(deviceId, "heading", it))
                 add(text(deviceId, "compass_direction", HeadingReader.direction(it)))
             }
+            r.magneticUt?.let { add(number(deviceId, "magnetic_field", it)) }
+            r.vibration?.let { add(number(deviceId, "vibration", it)) }
+            r.posture?.let { add(text(deviceId, "posture", it)) }
             r.soundDb?.let { add(number(deviceId, "sound_level", it)) }
         }
         client.webhook(webhookId, "update_sensor_states", payload)
