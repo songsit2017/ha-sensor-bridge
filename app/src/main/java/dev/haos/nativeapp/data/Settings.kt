@@ -57,6 +57,11 @@ class Settings(context: Context) {
         get() = prefs.getFloat(KEY_THRESHOLD, 1.5f)
         set(value) = prefs.edit { putFloat(KEY_THRESHOLD, value) }
 
+    /** True while the user wants reporting on; the boot receiver restarts the service from this. */
+    var reportingEnabled: Boolean
+        get() = prefs.getBoolean(KEY_REPORTING, false)
+        set(value) = prefs.edit { putBoolean(KEY_REPORTING, value) }
+
     /** Name shown in HA. Blank means "use the name the owner set on the phone". */
     var deviceName: String
         get() = prefs.getString(KEY_DEVICE_NAME, null)?.takeIf { it.isNotBlank() } ?: DeviceName.detect(appContext)
