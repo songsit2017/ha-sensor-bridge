@@ -1,0 +1,68 @@
+package dev.haos.nativeapp.data
+
+import android.content.Context
+import androidx.core.content.edit
+import java.util.UUID
+
+/**
+ * Connection settings and mobile_app registration state.
+ *
+ * The token is stored encrypted with a key held in the Android Keystore (see [TokenCipher]).
+ */
+class Settings(context: Context) {
+    private val prefs = context.getSharedPreferences("haos_native", Context.MODE_PRIVATE)
+
+    var baseUrl: String
+        get() = prefs.getString(KEY_BASE_URL, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_BASE_URL, value.trim().trimEnd('/')) }
+
+    var token: String
+        get() = prefs.getString(KEY_TOKEN_ENC, null)?.let(TokenCipher::decrypt) ?: ""
+        set(value) = prefs.edit {
+            val trimmed = value.trim()
+            if (trimmed.isEmpty()) remove(KEY_TOKEN_ENC) else putString(KEY_TOKEN_ENC, TokenCipher.encrypt(trimmed))
+        }
+
+    /** Webhook id returned by /api/mobile_app/registrations; null until registered. */
+    var webhookId: String?
+        get() = prefs.getString(KEY_WEBHOOK_ID, null)
+        set(value) = prefs.edit { putString(KEY_WEBHOOK_ID, value) }
+
+    /** Version of the sensor set last registered in HA; lets new sensors register after an app update. */
+    var registeredSensorVersion: Int
+        get() = prefs.getInt(KEY_SENSOR_VERSION, 0)
+        set(value) = prefs.edit { putInt(KEY_SENSOR_VERSION, value) }
+
+    /** How often accelerometer values are pushed to HA. */
+    var reportIntervalMs: Long
+        get() = prefs.getLong(KEY_INTERVAL, 2_000L)
+        set(value) = prefs.edit { putLong(KEY_INTERVAL, value.coerceAtLeast(500L)) }
+
+    /** Linear acceleration (m/s², gravity removed) above which motion is reported. */
+    var motionThreshold: Float
+        get() = prefs.getFloat(KEY_THRESHOLD, 1.5f)
+        set(value) = prefs.edit { putFloat(KEY_THRESHOLD, value) }
+
+    /** Stable per-install id; also used as the prefix for sensor unique_ids. */
+    val deviceId: String
+        get() = prefs.getString(KEY_DEVICE_ID, null) ?: UUID.randomUUID().toString().also {
+            prefs.edit { putString(KEY_DEVICE_ID, it) }
+        }
+
+    val isConfigured: Boolean get() = baseUrl.isNotEmpty() && token.isNotEmpty()
+
+    fun clearRegistration() = prefs.edit {
+        remove(KEY_WEBHOOK_ID)
+        remove(KEY_SENSOR_VERSION)
+    }
+
+    private companion object {
+        const val KEY_BASE_URL = "base_url"
+        const val KEY_TOKEN_ENC = "token_enc"
+        const val KEY_WEBHOOK_ID = "webhook_id"
+        const val KEY_SENSOR_VERSION = "sensor_set_version"
+        const val KEY_INTERVAL = "report_interval_ms"
+        const val KEY_THRESHOLD = "motion_threshold"
+        const val KEY_DEVICE_ID = "device_id"
+    }
+}
