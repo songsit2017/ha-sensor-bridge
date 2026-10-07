@@ -147,6 +147,9 @@ fun AccelScreen(vm: AppViewModel) {
         SectionHeader("การทำงานเบื้องหลัง")
         BatteryCard()
 
+        SectionHeader("ครอบครัว")
+        InviteCard(vm)
+
         SectionHeader("ระบบ")
         ThemeCard(vm)
         UpdateCard(vm)

@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import android.net.Uri
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.haos.nativeapp.ha.SetupLink
 import dev.haos.nativeapp.sensor.AccelerometerService
 import dev.haos.nativeapp.ui.AccelScreen
 import dev.haos.nativeapp.ui.AppViewModel
@@ -44,7 +45,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // Cold start via the login redirect (the process was killed while the browser was open).
-        if (savedInstanceState == null) intent?.data?.let(vm::handleAuthCallback)
+        if (savedInstanceState == null) route(intent?.data)
         setContent {
             val themeMode by vm.themeMode.collectAsStateWithLifecycle()
             AppTheme(themeMode) {
@@ -60,7 +61,13 @@ class MainActivity : ComponentActivity() {
     // singleTask: the login redirect from the browser arrives here.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intent.data?.let(vm::handleAuthCallback)
+        route(intent.data)
+    }
+
+    /** The invite QR and HA's login redirect share a scheme; the host tells them apart. */
+    private fun route(uri: Uri?) {
+        if (uri == null) return
+        if (uri.host == SetupLink.HOST) vm.handleSetupLink(uri) else vm.handleAuthCallback(uri)
     }
 }
 

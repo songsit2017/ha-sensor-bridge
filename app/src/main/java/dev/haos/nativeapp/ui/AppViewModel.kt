@@ -9,6 +9,7 @@ import dev.haos.nativeapp.data.Settings
 import dev.haos.nativeapp.ha.HaAuth
 import dev.haos.nativeapp.ha.HaClient
 import dev.haos.nativeapp.ha.Registrar
+import dev.haos.nativeapp.ha.SetupLink
 import dev.haos.nativeapp.ui.theme.ThemeMode
 import dev.haos.nativeapp.update.InstallResult
 import dev.haos.nativeapp.update.UpdateInfo
@@ -41,6 +42,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setThemeMode(mode: ThemeMode) {
         settings.themeMode = mode.key
         _themeMode.value = mode
+    }
+
+    private val _setupUrl = MutableStateFlow<String?>(null)
+    /** An HA address that arrived from an invite link, waiting for the user to confirm it. */
+    val setupUrl: StateFlow<String?> = _setupUrl.asStateFlow()
+
+    fun handleSetupLink(uri: Uri) {
+        SetupLink.parse(uri.toString())?.let { _setupUrl.value = it }
+    }
+
+    fun consumeSetupUrl() {
+        _setupUrl.value = null
     }
 
     private val _nameStatus = MutableStateFlow<String?>(null)

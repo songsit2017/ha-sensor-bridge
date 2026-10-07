@@ -1,5 +1,6 @@
 package dev.haos.nativeapp.ui
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -25,6 +27,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,6 +41,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.haos.nativeapp.ha.SetupLink
 
 @Composable
 fun SetupScreen(vm: AppViewModel) {
@@ -47,6 +51,53 @@ fun SetupScreen(vm: AppViewModel) {
     var token by rememberSaveable { mutableStateOf("") }
     var deviceName by rememberSaveable { mutableStateOf(vm.settings.deviceName) }
     var advanced by rememberSaveable { mutableStateOf(false) }
+    var scanning by rememberSaveable { mutableStateOf(false) }
+    var scanError by rememberSaveable { mutableStateOf<String?>(null) }
+    // An address from a scan or an invite link; nothing is opened until the user confirms the host.
+    var pendingUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    val incoming by vm.setupUrl.collectAsStateWithLifecycle()
+    LaunchedEffect(incoming) {
+        incoming?.let { pendingUrl = it; vm.consumeSetupUrl() }
+    }
+
+    if (scanning) {
+        QrScanner(
+            onCode = { text ->
+                scanning = false
+                val parsed = SetupLink.parse(text)
+                if (parsed != null) { scanError = null; pendingUrl = parsed }
+                else scanError = "QR นี้ไม่ใช่ที่อยู่ Home Assistant"
+            },
+            onClose = { scanning = false },
+        )
+        return
+    }
+
+    pendingUrl?.let { found ->
+        val host = Uri.parse(found).host ?: found
+        AlertDialog(
+            onDismissRequest = { pendingUrl = null },
+            title = { Text("เชื่อมต่อกับเซิร์ฟเวอร์นี้?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(host, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "ตรวจให้แน่ใจว่าเป็น Home Assistant ของครอบครัวคุณ ถ้าไม่ใช่ อย่าใส่รหัสผ่าน",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    url = found
+                    pendingUrl = null
+                    vm.setDeviceName(deviceName)
+                    vm.startLogin(found)
+                }) { Text("ล็อกอิน") }
+            },
+            dismissButton = { TextButton(onClick = { pendingUrl = null }) { Text("ยกเลิก") } },
+        )
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
@@ -79,6 +130,15 @@ fun SetupScreen(vm: AppViewModel) {
         }
 
         AppCard(title = "เชื่อมต่อ Home Assistant") {
+            OutlinedButton(onClick = { scanError = null; scanning = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("สแกน QR จากสมาชิกที่ตั้งค่าแล้ว")
+            }
+            scanError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+            Text(
+                "หรือกรอกที่อยู่เอง",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             OutlinedTextField(
                 value = url,
                 onValueChange = { url = it },
