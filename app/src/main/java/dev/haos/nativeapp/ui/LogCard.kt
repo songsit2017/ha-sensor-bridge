@@ -37,16 +37,15 @@ fun LogCard(vm: AppViewModel) {
 
     LaunchedEffect(Unit) { DebugLog.init(context); size = DebugLog.sizeBytes() }
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    AppCard(title = "บันทึก Log เพื่อปรับเกณฑ์") {
+        run {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    Text("บันทึก Log เพื่อปรับเกณฑ์", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "เก็บเฉพาะตัวเลขเซนเซอร์ในเครื่อง ไม่มี token/URL/เสียง และไม่ส่งออกจนกว่าจะกดแชร์",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+                Text(
+                    "เก็บเฉพาะตัวเลขเซนเซอร์ในเครื่อง ไม่มี token/URL/เสียง และไม่ส่งออกจนกว่าจะกดแชร์",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
                 Switch(checked = on, onCheckedChange = {
                     on = it
                     DebugLog.setEnabled(context, it)

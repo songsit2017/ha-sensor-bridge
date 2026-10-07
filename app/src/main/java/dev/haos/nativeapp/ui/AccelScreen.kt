@@ -2,6 +2,7 @@ package dev.haos.nativeapp.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,10 +12,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -26,15 +33,18 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.haos.nativeapp.sensor.AccelSample
 import dev.haos.nativeapp.sensor.AccelerometerReader
 import dev.haos.nativeapp.sensor.AccelerometerService
+import dev.haos.nativeapp.ui.theme.StatusColors
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,81 +70,153 @@ fun AccelScreen(vm: AppViewModel) {
         ActivityResultContracts.RequestPermission()
     ) { AccelerometerService.start(context) }
 
-    // Start sending as soon as the app opens, unless the user pressed stop.
-    LaunchedEffect(Unit) {
-        if (!vm.settings.reportingEnabled || AccelerometerService.running.value) return@LaunchedEffect
+    fun start() {
+        vm.updateReporting((intervalSec * 1000).toLong(), threshold)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         else AccelerometerService.start(context)
     }
 
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        UpdateCard(vm)
-        DeviceNameCard(vm)
-        BatteryCard()
-        SensorsCard(vm)
-        LogCard(vm)
+    // Start sending as soon as the app opens, unless the user pressed stop.
+    LaunchedEffect(Unit) {
+        if (!vm.settings.reportingEnabled || AccelerometerService.running.value) return@LaunchedEffect
+        start()
+    }
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("ค่าความเร่งตอนนี้ (m/s²)", style = MaterialTheme.typography.titleMedium)
-                if (!reader.isAvailable) {
-                    Text("เครื่องนี้ไม่มีเซนเซอร์ความเร่ง")
-                } else sample?.let { s ->
-                    Axis("X", s.x); Axis("Y", s.y); Axis("Z", s.z)
-                    Axis("|a|", s.magnitude)
-                    Axis("เคลื่อนที่", s.linear)
-                    Axis("เอียงหน้า-หลัง", s.pitch)
-                    Axis("เอียงซ้าย-ขวา", s.roll)
-                    Text(if (s.z < -7f) "คว่ำหน้าจออยู่" else "หงายหน้าจออยู่")
-                }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        StatusCard(
+            vm = vm,
+            running = running,
+            lastReport = lastReport,
+            lastError = lastError,
+            onStart = ::start,
+            onStop = { AccelerometerService.stop(context) },
+        )
+
+        SectionHeader("เซนเซอร์")
+        SensorsCard(vm)
+
+        SectionHeader("การส่งข้อมูล")
+        AppCard(
+            title = "ความถี่และความไว",
+            subtitle = if (running) "หยุดส่งก่อนถึงจะเปลี่ยนได้" else null,
+        ) {
+            Text("ส่งทุก ${"%.1f".format(Locale.US, intervalSec)} วินาที", style = MaterialTheme.typography.bodyMedium)
+            Slider(
+                value = intervalSec, onValueChange = { intervalSec = it },
+                valueRange = 0.5f..30f, enabled = !running,
+            )
+            Text(
+                "เกณฑ์ตรวจจับการเคลื่อนที่ ${"%.1f".format(Locale.US, threshold)} m/s²",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Slider(
+                value = threshold, onValueChange = { threshold = it },
+                valueRange = 0.2f..10f, enabled = !running,
+            )
+        }
+
+        SectionHeader("ค่าสดตอนนี้")
+        AppCard(title = "ความเร่งและการเอียง", subtitle = "อ่านจากเซนเซอร์ในเครื่องแบบเรียลไทม์") {
+            val s = sample
+            if (!reader.isAvailable) {
+                Text("เครื่องนี้ไม่มีเซนเซอร์ความเร่ง")
+            } else if (s == null) {
+                Text("กำลังอ่านค่า...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                KeyValueRow("X / Y / Z (m/s²)", "%.2f / %.2f / %.2f".format(Locale.US, s.x, s.y, s.z), mono = true)
+                KeyValueRow("ความเร่งรวม", "%.2f".format(Locale.US, s.magnitude), mono = true)
+                KeyValueRow("การเคลื่อนที่", "%.2f".format(Locale.US, s.linear), mono = true)
+                KeyValueRow("เอียงหน้า-หลัง", "%.1f°".format(Locale.US, s.pitch), mono = true)
+                KeyValueRow("เอียงซ้าย-ขวา", "%.1f°".format(Locale.US, s.roll), mono = true)
+                KeyValueRow("หน้าจอ", if (s.z < -7f) "คว่ำอยู่" else "หงายอยู่")
             }
         }
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("ส่งค่าเข้า Home Assistant", style = MaterialTheme.typography.titleMedium)
-                Text("ส่งทุก ${"%.1f".format(Locale.US, intervalSec)} วินาที")
-                Slider(
-                    value = intervalSec, onValueChange = { intervalSec = it },
-                    valueRange = 0.5f..30f, enabled = !running,
-                )
-                Text("เกณฑ์ตรวจจับการเคลื่อนที่ ${"%.1f".format(Locale.US, threshold)} m/s²")
-                Slider(
-                    value = threshold, onValueChange = { threshold = it },
-                    valueRange = 0.2f..10f, enabled = !running,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (running) {
-                        OutlinedButton(onClick = { AccelerometerService.stop(context) }) { Text("หยุดส่ง") }
-                    } else {
-                        Button(onClick = {
-                            vm.updateReporting((intervalSec * 1000).toLong(), threshold)
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                AccelerometerService.start(context)
-                            }
-                        }) { Text("เริ่มส่ง") }
-                    }
-                }
-                lastReport?.let {
-                    Text("ส่งล่าสุด ${DateFormat.getTimeInstance().format(Date(it))}")
-                }
-                lastError?.let { Text("ผิดพลาด: $it", color = MaterialTheme.colorScheme.error) }
-            }
+        SectionHeader("เครื่องนี้")
+        DeviceNameCard(vm)
+
+        SectionHeader("การทำงานเบื้องหลัง")
+        BatteryCard()
+
+        SectionHeader("ระบบ")
+        UpdateCard(vm)
+        LogCard(vm)
+
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                Icons.Filled.Lock, contentDescription = null,
+                modifier = Modifier.size(16.dp).padding(top = 2.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "  ข้อมูลเซนเซอร์ส่งไปที่ Home Assistant ของคุณเท่านั้น ไม่มี analytics และไม่มีเซิร์ฟเวอร์กลาง " +
+                    "(ติดต่อ GitHub เฉพาะตอนตรวจอัปเดต)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
 
+private enum class LinkState { LIVE, CONNECTING, PROBLEM, STOPPED }
+
 @Composable
-private fun Axis(label: String, value: Float) {
-    Text(
-        "%-10s %8.3f".format(Locale.US, label, value),
-        fontFamily = FontFamily.Monospace,
-    )
+private fun StatusCard(
+    vm: AppViewModel,
+    running: Boolean,
+    lastReport: Long?,
+    lastError: String?,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val state = when {
+        !running -> LinkState.STOPPED
+        lastError != null -> LinkState.PROBLEM
+        lastReport == null -> LinkState.CONNECTING
+        else -> LinkState.LIVE
+    }
+    val ok = StatusColors.ok()
+    val warn = StatusColors.warning()
+    val muted = MaterialTheme.colorScheme.outline
+    val (color, icon: ImageVector, title) = when (state) {
+        LinkState.LIVE -> Triple(ok, Icons.Filled.CheckCircle, "กำลังส่งข้อมูลเข้า Home Assistant")
+        LinkState.CONNECTING -> Triple(ok, Icons.Filled.PlayArrow, "กำลังเชื่อมต่อ...")
+        LinkState.PROBLEM -> Triple(warn, Icons.Filled.Warning, "ส่งไม่สำเร็จ กำลังลองใหม่")
+        LinkState.STOPPED -> Triple(muted, Icons.Filled.PlayArrow, "หยุดส่งอยู่")
+    }
+    val host = remember(vm.settings.baseUrl) { Uri.parse(vm.settings.baseUrl).host ?: vm.settings.baseUrl }
+
+    AppCard(container = MaterialTheme.colorScheme.secondaryContainer) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                lastError?.takeIf { state == LinkState.PROBLEM }?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+            StatusDot(color, pulsing = state == LinkState.LIVE || state == LinkState.CONNECTING)
+        }
+        KeyValueRow("ปลายทาง", host)
+        KeyValueRow("ชื่อเครื่อง", vm.settings.deviceName)
+        KeyValueRow(
+            "ส่งล่าสุด",
+            lastReport?.let { DateFormat.getTimeInstance().format(Date(it)) } ?: "—",
+        )
+        if (running) {
+            OutlinedButton(onClick = onStop, modifier = Modifier.fillMaxWidth()) { Text("หยุดส่ง") }
+        } else {
+            Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) { Text("เริ่มส่ง") }
+        }
+    }
 }

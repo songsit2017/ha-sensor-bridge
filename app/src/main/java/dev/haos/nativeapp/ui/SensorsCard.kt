@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -17,7 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -31,7 +31,8 @@ import dev.haos.nativeapp.sensor.SensorGroup
 fun SensorsCard(vm: AppViewModel) {
     val context = LocalContext.current
     val running by AccelerometerService.running.collectAsStateWithLifecycle()
-    val state = remember { SensorGroup.values().associateWith { mutableStateOf(vm.settings.isEnabled(it)) } }
+    val groups = SensorGroup.values()
+    val state = remember { groups.associateWith { mutableStateOf(vm.settings.isEnabled(it)) } }
 
     fun set(group: SensorGroup, on: Boolean) {
         state.getValue(group).value = on
@@ -42,31 +43,35 @@ fun SensorsCard(vm: AppViewModel) {
         set(SensorGroup.SOUND, granted)
     }
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("เซนเซอร์ที่จะส่ง", style = MaterialTheme.typography.titleMedium)
-            Text(
-                if (running) "หยุดส่งก่อนถึงจะเปลี่ยนได้ — ปิดตัวที่ไม่ใช้เพื่อประหยัดแบต"
-                else "ปิดตัวที่ไม่ใช้เพื่อประหยัดแบต",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            for (group in SensorGroup.values()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.weight(1f)) {
-                        Text(group.label)
-                        Text(group.hint, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Switch(
-                        checked = state.getValue(group).value,
-                        enabled = !running,
-                        onCheckedChange = { on ->
-                            if (group == SensorGroup.SOUND && on &&
-                                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
-                                PackageManager.PERMISSION_GRANTED
-                            ) micPermission.launch(Manifest.permission.RECORD_AUDIO) else set(group, on)
-                        },
+    AppCard(
+        title = "เซนเซอร์ที่ส่ง",
+        subtitle = if (running) "หยุดส่งก่อนถึงจะเปลี่ยนได้" else "ปิดตัวที่ไม่ใช้เพื่อประหยัดแบต",
+    ) {
+        groups.forEachIndexed { index, group ->
+            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(group.label, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        group.hint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                Switch(
+                    checked = state.getValue(group).value,
+                    enabled = !running,
+                    onCheckedChange = { on ->
+                        if (group == SensorGroup.SOUND && on &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
+                            PackageManager.PERMISSION_GRANTED
+                        ) micPermission.launch(Manifest.permission.RECORD_AUDIO) else set(group, on)
+                    },
+                )
             }
         }
     }

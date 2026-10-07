@@ -32,26 +32,25 @@ fun BatteryCard() {
         onPauseOrDispose { }
     }
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("กันระบบปิดแอปตอนประหยัดแบต", style = MaterialTheme.typography.titleMedium)
-            if (exempt) {
-                Text("ยกเว้นการประหยัดแบตแล้ว แอปทำงานเบื้องหลังได้ต่อเนื่อง")
-            } else {
-                Text(
-                    "ระบบอาจหยุดแอปตอนปิดจอหรือประหยัดแบต ค่าที่ส่งเข้า HA จะหยุดไป",
-                    color = MaterialTheme.colorScheme.error,
-                )
-                Button(onClick = { BatterySettings.requestExemption(context) }) { Text("ขอยกเว้นการประหยัดแบต") }
-            }
-            vendor?.let {
-                Text("เครื่อง ${it.label} มีตัวจำกัดเพิ่มอีกชั้น", style = MaterialTheme.typography.titleSmall)
-                Text(it.steps, style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(onClick = { BatterySettings.openVendorSettings(context, it) }) {
-                    Text("เปิดหน้าตั้งค่าของ ${it.label.substringBefore(' ')}")
-                }
-            }
-            OutlinedButton(onClick = { BatterySettings.openAppInfo(context) }) { Text("เปิดหน้าข้อมูลแอป") }
+    AppCard(
+        title = "กันระบบปิดแอปตอนประหยัดแบต",
+        subtitle = if (exempt) "ยกเว้นแล้ว แอปทำงานเบื้องหลังได้ต่อเนื่อง" else null,
+    ) {
+        if (!exempt) {
+            Text(
+                "ระบบอาจหยุดแอปตอนปิดจอหรือประหยัดแบต ค่าที่ส่งเข้า HA จะหยุดไป",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Button(onClick = { BatterySettings.requestExemption(context) }) { Text("ขอยกเว้นการประหยัดแบต") }
         }
+        vendor?.let {
+            Text("เครื่อง ${it.label} มีตัวจำกัดเพิ่มอีกชั้น", style = MaterialTheme.typography.titleSmall)
+            Text(it.steps, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(onClick = { BatterySettings.openVendorSettings(context, it) }) {
+                Text("เปิดหน้าตั้งค่าของ ${it.label.substringBefore(' ')}")
+            }
+        }
+        OutlinedButton(onClick = { BatterySettings.openAppInfo(context) }) { Text("เปิดหน้าข้อมูลแอป") }
     }
 }
