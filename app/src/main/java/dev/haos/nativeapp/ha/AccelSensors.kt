@@ -1,6 +1,9 @@
 package dev.haos.nativeapp.ha
 
 import dev.haos.nativeapp.sensor.AccelSample
+import dev.haos.nativeapp.sensor.Gyro
+import dev.haos.nativeapp.sensor.HeadingReader
+import dev.haos.nativeapp.sensor.SensorGroup
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
@@ -15,6 +18,14 @@ data class SensorReading(
     val peakLinear: Float,
     val shaking: Boolean,
     val faceDown: Boolean,
+    val doubleTap: Boolean = false,
+    val pickUp: Boolean = false,
+    val fall: Boolean = false,
+    /** Null when the sensor is switched off or missing: it is then left out of the update. */
+    val gyro: Gyro? = null,
+    val heading: Float? = null,
+    val soundDb: Float? = null,
+    val enabled: Set<SensorGroup> = SensorGroup.values().toSet(),
 )
 
 /**
@@ -23,7 +34,7 @@ data class SensorReading(
  */
 object AccelSensors {
     /** Bump whenever a sensor is added or changed so existing installs re-register. */
-    const val VERSION = 2
+    const val VERSION = 3
 
     private data class Def(
         val key: String,
@@ -32,6 +43,7 @@ object AccelSensors {
         val icon: String,
         val unit: String? = null,
         val deviceClass: String? = null,
+        val text: Boolean = false,
     )
 
     private val defs = listOf(
@@ -44,6 +56,16 @@ object AccelSensors {
         Def("motion", "Motion", type = "binary_sensor", icon = "mdi:vibrate", deviceClass = "moving"),
         Def("shake", "Shake", type = "binary_sensor", icon = "mdi:cellphone-wireless", deviceClass = "vibration"),
         Def("face_down", "Face down", type = "binary_sensor", icon = "mdi:cellphone-arrow-down"),
+        Def("gyro_x", "Gyroscope X", icon = "mdi:rotate-3d-variant", unit = "°/s"),
+        Def("gyro_y", "Gyroscope Y", icon = "mdi:rotate-3d-variant", unit = "°/s"),
+        Def("gyro_z", "Gyroscope Z", icon = "mdi:rotate-3d-variant", unit = "°/s"),
+        Def("gyro_magnitude", "Rotation rate", icon = "mdi:rotate-orbit", unit = "°/s"),
+        Def("heading", "Compass heading", icon = "mdi:compass", unit = "°"),
+        Def("compass_direction", "Compass direction", icon = "mdi:compass-outline", text = true),
+        Def("double_tap", "Double tap", type = "binary_sensor", icon = "mdi:gesture-double-tap"),
+        Def("pick_up", "Picked up", type = "binary_sensor", icon = "mdi:hand-back-right"),
+        Def("fall", "Fall", type = "binary_sensor", icon = "mdi:arrow-down-bold-box", deviceClass = "problem"),
+        Def("sound_level", "Sound level", icon = "mdi:microphone", unit = "dB"),
     )
 
     private fun uniqueId(deviceId: String, key: String) = "${deviceId}_$key"
@@ -59,6 +81,8 @@ object AccelSensors {
                 d.deviceClass?.let { put("device_class", it) }
                 if (d.type == "binary_sensor") {
                     put("state", false)
+                } else if (d.text) {
+                    put("state", "N")
                 } else {
                     put("state", 0.0)
                     put("state_class", "measurement")
@@ -71,18 +95,45 @@ object AccelSensors {
 
     suspend fun update(client: HaClient, webhookId: String, deviceId: String, r: SensorReading) {
         val s = r.sample
+        val on = r.enabled
         val payload: JsonArray = buildJsonArray {
-            add(number(deviceId, "accel_x", s.x))
-            add(number(deviceId, "accel_y", s.y))
-            add(number(deviceId, "accel_z", s.z))
-            add(number(deviceId, "accel_magnitude", s.magnitude))
-            add(number(deviceId, "tilt_pitch", s.pitch))
-            add(number(deviceId, "tilt_roll", s.roll))
-            add(flag(deviceId, "motion", r.moving, mapOf("peak_linear_acceleration" to round(r.peakLinear))))
+            if (SensorGroup.ACCEL in on) {
+                add(number(deviceId, "accel_x", s.x))
+                add(number(deviceId, "accel_y", s.y))
+                add(number(deviceId, "accel_z", s.z))
+                add(number(deviceId, "accel_magnitude", s.magnitude))
+                add(flag(deviceId, "motion", r.moving, mapOf("peak_linear_acceleration" to round(r.peakLinear))))
+            }
+            if (SensorGroup.TILT in on) {
+                add(number(deviceId, "tilt_pitch", s.pitch))
+                add(number(deviceId, "tilt_roll", s.roll))
+            }
+            // Event sensors always report; a switched-off one simply stays "off".
             add(flag(deviceId, "shake", r.shaking))
             add(flag(deviceId, "face_down", r.faceDown))
+            add(flag(deviceId, "double_tap", r.doubleTap))
+            add(flag(deviceId, "pick_up", r.pickUp))
+            add(flag(deviceId, "fall", r.fall))
+            r.gyro?.let {
+                add(number(deviceId, "gyro_x", it.x))
+                add(number(deviceId, "gyro_y", it.y))
+                add(number(deviceId, "gyro_z", it.z))
+                add(number(deviceId, "gyro_magnitude", it.magnitude))
+            }
+            r.heading?.let {
+                add(number(deviceId, "heading", it))
+                add(text(deviceId, "compass_direction", HeadingReader.direction(it)))
+            }
+            r.soundDb?.let { add(number(deviceId, "sound_level", it)) }
         }
         client.webhook(webhookId, "update_sensor_states", payload)
+    }
+
+    private fun text(deviceId: String, key: String, value: String): JsonObject = buildJsonObject {
+        put("type", "sensor")
+        put("unique_id", uniqueId(deviceId, key))
+        put("icon", defs.first { it.key == key }.icon)
+        put("state", value)
     }
 
     private fun number(deviceId: String, key: String, value: Float): JsonObject = buildJsonObject {

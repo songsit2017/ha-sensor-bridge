@@ -2,6 +2,7 @@ package dev.haos.nativeapp.data
 
 import android.content.Context
 import androidx.core.content.edit
+import dev.haos.nativeapp.sensor.SensorGroup
 import java.util.UUID
 
 /**
@@ -61,6 +62,12 @@ class Settings(context: Context) {
     var reportingEnabled: Boolean
         get() = prefs.getBoolean(KEY_REPORTING, false)
         set(value) = prefs.edit { putBoolean(KEY_REPORTING, value) }
+
+    fun isEnabled(group: SensorGroup): Boolean = prefs.getBoolean("sensor_${group.key}", group.defaultOn)
+
+    fun setEnabled(group: SensorGroup, on: Boolean) = prefs.edit { putBoolean("sensor_${group.key}", on) }
+
+    fun enabledGroups(): Set<SensorGroup> = SensorGroup.values().filter(::isEnabled).toSet()
 
     /** Name shown in HA. Blank means "use the name the owner set on the phone". */
     var deviceName: String

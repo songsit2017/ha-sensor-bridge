@@ -6,11 +6,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -46,11 +47,11 @@ class AccelerometerService : Service() {
 
     @Volatile private var latest: AccelSample? = null
     @Volatile private var peakLinear = 0f
-    @Volatile private var shakeUntil = 0L
-    @Volatile private var faceDown = false
-
-    private val shakePeaks = ArrayDeque<Long>()
-    private var lastPeakAt = 0L
+    @Volatile private var gyro: Gyro? = null
+    @Volatile private var heading: Float? = null
+    @Volatile private var soundDb: Float? = null
+    private var enabled: Set<SensorGroup> = emptySet()
+    private lateinit var events: MotionEvents
 
     /** Lets a shake or flip be sent right away instead of waiting for the next interval. */
     private val sendNow = Channel<Unit>(Channel.CONFLATED)
@@ -65,19 +66,28 @@ class AccelerometerService : Service() {
         }
         if (_running.value) return START_STICKY
 
-        startInForeground()
+        val settings = Settings(this)
+        enabled = settings.enabledGroups()
+        val micOk = intent?.getBooleanExtra(EXTRA_MIC_OK, false) == true &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        var useMic = SensorGroup.SOUND in enabled && micOk
+        if (!startInForeground(useMic)) useMic = false
+        if (!useMic) enabled = enabled - SensorGroup.SOUND
         _running.value = true
         _lastError.value = null
 
-        val settings = Settings(this)
         settings.reportingEnabled = true
+        events = MotionEvents(enabled) { sendNow.trySend(Unit) }
         scope.launch {
             AccelerometerReader(this@AccelerometerService).samples().collect { s ->
                 latest = s
                 peakLinear = max(peakLinear, s.linear)
-                detectEvents(s)
+                events.process(s)
             }
         }
+        if (SensorGroup.GYRO in enabled) scope.launch { GyroReader.samples(this@AccelerometerService).collect { gyro = it } }
+        if (SensorGroup.COMPASS in enabled) scope.launch { HeadingReader.samples(this@AccelerometerService).collect { heading = it } }
+        if (useMic) scope.launch { SoundMeter.levels().collect { soundDb = it } }
         scope.launch { reportLoop(settings) }
         return START_STICKY
     }
@@ -98,8 +108,15 @@ class AccelerometerService : Service() {
                             sample = sample,
                             moving = peak >= settings.motionThreshold,
                             peakLinear = peak,
-                            shaking = SystemClock.elapsedRealtime() < shakeUntil,
-                            faceDown = faceDown,
+                            shaking = events.shaking,
+                            faceDown = events.faceDown,
+                            doubleTap = events.doubleTapped,
+                            pickUp = events.pickedUp,
+                            fall = events.fell,
+                            gyro = gyro,
+                            heading = heading,
+                            soundDb = soundDb,
+                            enabled = enabled,
                         ),
                     )
                     _lastReportAt.value = System.currentTimeMillis()
@@ -116,33 +133,14 @@ class AccelerometerService : Service() {
         }
     }
 
-    /** Shake = 3+ hard jolts within a second. Face-down uses hysteresis so it doesn't flicker. */
-    private fun detectEvents(s: AccelSample) {
-        val now = SystemClock.elapsedRealtime()
-        if (s.linear > SHAKE_LINEAR && now - lastPeakAt > SHAKE_MIN_GAP_MS) {
-            lastPeakAt = now
-            shakePeaks.addLast(now)
-            while (shakePeaks.first() < now - SHAKE_WINDOW_MS) shakePeaks.removeFirst()
-            if (shakePeaks.size >= SHAKE_PEAKS) {
-                shakePeaks.clear()
-                shakeUntil = now + SHAKE_HOLD_MS
-                sendNow.trySend(Unit)
-            }
-        }
-        val down = if (faceDown) s.z < -5f else s.z < -7f
-        if (down != faceDown) {
-            faceDown = down
-            sendNow.trySend(Unit)
-        }
-    }
-
     private suspend fun onError(e: Exception) {
         Log.w(TAG, "Report failed", e)
         _lastError.value = e.message ?: e.javaClass.simpleName
         delay(RETRY_DELAY_MS)
     }
 
-    private fun startInForeground() {
+    /** Returns false when the microphone type was refused and the service started without it. */
+    private fun startInForeground(mic: Boolean): Boolean {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
@@ -163,10 +161,21 @@ class AccelerometerService : Service() {
             .setContentIntent(open)
             .addAction(0, "Stop", stop)
             .build()
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-        } else 0
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+        fun typeFor(withMic: Boolean): Int = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
+                    (if (withMic) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && withMic -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            else -> 0
+        }
+        return try {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, typeFor(mic))
+            true
+        } catch (e: SecurityException) {
+            if (!mic) throw e
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, typeFor(false))
+            false
+        }
     }
 
     override fun onDestroy() {
@@ -180,11 +189,7 @@ class AccelerometerService : Service() {
         private const val CHANNEL_ID = "accel"
         private const val NOTIFICATION_ID = 1
         private const val RETRY_DELAY_MS = 10_000L
-        private const val SHAKE_LINEAR = 9f // m/s² of motion beyond gravity
-        private const val SHAKE_PEAKS = 3
-        private const val SHAKE_WINDOW_MS = 1_000L
-        private const val SHAKE_MIN_GAP_MS = 120L
-        private const val SHAKE_HOLD_MS = 3_000L
+        private const val EXTRA_MIC_OK = "mic_ok"
         private const val ACTION_STOP = "dev.haos.nativeapp.STOP"
 
         private val _running = MutableStateFlow(false)
@@ -196,8 +201,12 @@ class AccelerometerService : Service() {
         private val _lastError = MutableStateFlow<String?>(null)
         val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
-        fun start(context: Context) =
-            ContextCompat.startForegroundService(context, Intent(context, AccelerometerService::class.java))
+        /** [allowMic] must be false when starting from the background (boot): Android refuses mic access there. */
+        fun start(context: Context, allowMic: Boolean = true) =
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, AccelerometerService::class.java).putExtra(EXTRA_MIC_OK, allowMic),
+            )
 
         fun stop(context: Context) {
             Settings(context).reportingEnabled = false
