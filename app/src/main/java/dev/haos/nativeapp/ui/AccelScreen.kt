@@ -52,7 +52,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun AccelScreen(vm: AppViewModel) {
+fun AccelScreen(vm: AppViewModel, tab: MainTab) {
     val context = LocalContext.current
     val reader = remember { AccelerometerReader(context) }
     var sample by remember { mutableStateOf<AccelSample?>(null) }
@@ -87,92 +87,128 @@ fun AccelScreen(vm: AppViewModel) {
         start()
     }
 
+    // One scroll position per tab, so switching tabs doesn't throw the reader back to the top.
+    val homeScroll = rememberScrollState()
+    val sensorsScroll = rememberScrollState()
+    val familyScroll = rememberScrollState()
+    val settingsScroll = rememberScrollState()
+    val scroll = when (tab) {
+        MainTab.HOME -> homeScroll
+        MainTab.SENSORS -> sensorsScroll
+        MainTab.FAMILY -> familyScroll
+        MainTab.SETTINGS -> settingsScroll
+    }
+
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        UpdateBanner(vm)
-        StatusCard(
-            vm = vm,
-            running = running,
-            lastReport = lastReport,
-            lastError = lastError,
-            onStart = ::start,
-            onStop = { AccelerometerService.stop(context) },
-        )
+        when (tab) {
+            MainTab.HOME -> {
+                UpdateBanner(vm)
+                StatusCard(
+                    vm = vm,
+                    running = running,
+                    lastReport = lastReport,
+                    lastError = lastError,
+                    onStart = ::start,
+                    onStop = { AccelerometerService.stop(context) },
+                )
 
-        SectionHeader("เซนเซอร์")
-        SensorsCard(vm)
+                SectionHeader("ค่าสดตอนนี้")
+                AppCard(title = "ความเร่งและการเอียง", subtitle = "อ่านจากเซนเซอร์ในเครื่องแบบเรียลไทม์") {
+                    val s = sample
+                    if (!reader.isAvailable) {
+                        Text("เครื่องนี้ไม่มีเซนเซอร์ความเร่ง")
+                    } else if (s == null) {
+                        Text("กำลังอ่านค่า...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        KeyValueRow("X / Y / Z (m/s²)", "%.2f / %.2f / %.2f".format(Locale.US, s.x, s.y, s.z), mono = true)
+                        KeyValueRow("ความเร่งรวม", "%.2f".format(Locale.US, s.magnitude), mono = true)
+                        KeyValueRow("การเคลื่อนที่", "%.2f".format(Locale.US, s.linear), mono = true)
+                        KeyValueRow("เอียงหน้า-หลัง", "%.1f°".format(Locale.US, s.pitch), mono = true)
+                        KeyValueRow("เอียงซ้าย-ขวา", "%.1f°".format(Locale.US, s.roll), mono = true)
+                        KeyValueRow("หน้าจอ", if (s.z < -7f) "คว่ำอยู่" else "หงายอยู่")
+                    }
+                }
 
-        SectionHeader("การส่งข้อมูล")
-        AppCard(
-            title = "ความถี่และความไว",
-            subtitle = if (running) "หยุดส่งก่อนถึงจะเปลี่ยนได้" else null,
-        ) {
-            Text("ส่งทุก ${"%.1f".format(Locale.US, intervalSec)} วินาที", style = MaterialTheme.typography.bodyMedium)
-            Slider(
-                value = intervalSec, onValueChange = { intervalSec = it },
-                valueRange = 0.5f..30f, enabled = !running,
-            )
-            Text(
-                "เกณฑ์ตรวจจับการเคลื่อนที่ ${"%.1f".format(Locale.US, threshold)} m/s²",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Slider(
-                value = threshold, onValueChange = { threshold = it },
-                valueRange = 0.2f..10f, enabled = !running,
-            )
-        }
+                PrivacyFooter()
+            }
 
-        SectionHeader("ค่าสดตอนนี้")
-        AppCard(title = "ความเร่งและการเอียง", subtitle = "อ่านจากเซนเซอร์ในเครื่องแบบเรียลไทม์") {
-            val s = sample
-            if (!reader.isAvailable) {
-                Text("เครื่องนี้ไม่มีเซนเซอร์ความเร่ง")
-            } else if (s == null) {
-                Text("กำลังอ่านค่า...", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                KeyValueRow("X / Y / Z (m/s²)", "%.2f / %.2f / %.2f".format(Locale.US, s.x, s.y, s.z), mono = true)
-                KeyValueRow("ความเร่งรวม", "%.2f".format(Locale.US, s.magnitude), mono = true)
-                KeyValueRow("การเคลื่อนที่", "%.2f".format(Locale.US, s.linear), mono = true)
-                KeyValueRow("เอียงหน้า-หลัง", "%.1f°".format(Locale.US, s.pitch), mono = true)
-                KeyValueRow("เอียงซ้าย-ขวา", "%.1f°".format(Locale.US, s.roll), mono = true)
-                KeyValueRow("หน้าจอ", if (s.z < -7f) "คว่ำอยู่" else "หงายอยู่")
+            MainTab.SENSORS -> {
+                SensorsCard(vm)
+
+                SectionHeader("การส่งข้อมูล")
+                AppCard(
+                    title = "ความถี่และความไว",
+                    subtitle = if (running) "หยุดส่งก่อนถึงจะเปลี่ยนได้" else null,
+                ) {
+                    Text("ส่งทุก ${"%.1f".format(Locale.US, intervalSec)} วินาที", style = MaterialTheme.typography.bodyMedium)
+                    Slider(
+                        value = intervalSec, onValueChange = { intervalSec = it },
+                        valueRange = 0.5f..30f, enabled = !running,
+                    )
+                    Text(
+                        "เกณฑ์ตรวจจับการเคลื่อนที่ ${"%.1f".format(Locale.US, threshold)} m/s²",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Slider(
+                        value = threshold, onValueChange = { threshold = it },
+                        valueRange = 0.2f..10f, enabled = !running,
+                    )
+                }
+            }
+
+            MainTab.FAMILY -> {
+                DeviceNameCard(vm)
+
+                SectionHeader("ชวนสมาชิก")
+                InviteCard(vm)
+            }
+
+            MainTab.SETTINGS -> {
+                SectionHeader("การทำงานเบื้องหลัง")
+                BatteryCard()
+
+                SectionHeader("การแสดงผล")
+                ThemeCard(vm)
+
+                SectionHeader("แอป")
+                UpdateCard(vm)
+
+                SectionHeader("ขั้นสูง")
+                LogCard(vm)
             }
         }
+    }
+}
 
-        SectionHeader("เครื่องนี้")
-        DeviceNameCard(vm)
+enum class MainTab(val label: String) {
+    HOME("หน้าหลัก"),
+    SENSORS("เซนเซอร์"),
+    FAMILY("ครอบครัว"),
+    SETTINGS("ตั้งค่า"),
+}
 
-        SectionHeader("การทำงานเบื้องหลัง")
-        BatteryCard()
-
-        SectionHeader("ครอบครัว")
-        InviteCard(vm)
-
-        SectionHeader("ระบบ")
-        ThemeCard(vm)
-        UpdateCard(vm)
-        LogCard(vm)
-
-        Row(
-            Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.Top,
-        ) {
-            Icon(
-                Icons.Filled.Lock, contentDescription = null,
-                modifier = Modifier.size(16.dp).padding(top = 2.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                "  ข้อมูลเซนเซอร์ส่งไปที่ Home Assistant ของคุณเท่านั้น ไม่มี analytics และไม่มีเซิร์ฟเวอร์กลาง " +
-                    "(ติดต่อ GitHub เฉพาะตอนตรวจอัปเดต)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
+@Composable
+private fun PrivacyFooter() {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            Icons.Filled.Lock, contentDescription = null,
+            modifier = Modifier.size(16.dp).padding(top = 2.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "  ข้อมูลเซนเซอร์ส่งไปที่ Home Assistant ของคุณเท่านั้น ไม่มี analytics และไม่มีเซิร์ฟเวอร์กลาง " +
+                "(ติดต่อ GitHub เฉพาะตอนตรวจอัปเดต)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

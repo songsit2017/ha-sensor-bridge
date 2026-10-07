@@ -24,6 +24,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.vector.ImageVector
+import dev.haos.nativeapp.ui.MainTab
+import dev.haos.nativeapp.ui.UpdateState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,9 +83,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun MainTab.icon(): ImageVector = when (this) {
+    MainTab.HOME -> Icons.Filled.Home
+    MainTab.SENSORS -> Icons.Filled.List
+    MainTab.FAMILY -> Icons.Filled.Person
+    MainTab.SETTINGS -> Icons.Filled.Settings
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BridgeScaffold(vm: AppViewModel) {
+    var tab by rememberSaveable { mutableStateOf(MainTab.HOME) }
+    val update by vm.update.collectAsStateWithLifecycle()
     var menuOpen by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
     val host = remember(vm.settings.baseUrl) { Uri.parse(vm.settings.baseUrl).host ?: vm.settings.baseUrl }
@@ -102,8 +123,25 @@ private fun BridgeScaffold(vm: AppViewModel) {
                 },
             )
         },
+        bottomBar = {
+            NavigationBar {
+                for (item in MainTab.values()) {
+                    NavigationBarItem(
+                        selected = tab == item,
+                        onClick = { tab = item },
+                        icon = {
+                            // A dot on Settings while a new version is waiting there too.
+                            BadgedBox(badge = {
+                                if (item == MainTab.SETTINGS && update is UpdateState.Available) Badge()
+                            }) { Icon(item.icon(), contentDescription = item.label) }
+                        },
+                        label = { Text(item.label) },
+                    )
+                }
+            }
+        },
     ) { padding ->
-        Surface(Modifier.padding(padding)) { AccelScreen(vm) }
+        Surface(Modifier.padding(padding)) { AccelScreen(vm, tab) }
     }
 
     if (confirmSignOut) {
