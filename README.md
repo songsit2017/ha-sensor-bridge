@@ -13,7 +13,7 @@
      HA ต้องเข้าถึงไฟล์นี้ได้ทางอินเทอร์เน็ต จึงต้องเป็น repo public
 2. แอปลงทะเบียนมือถือกับ integration `mobile_app` (`POST /api/mobile_app/registrations`) ได้ `webhook_id`
    มือถือจะขึ้นเป็นอุปกรณ์แยกต่างหากจาก Companion
-3. Foreground service อ่าน accelerometer ด้วย `SensorManager` แล้วส่งเข้า HA ทาง
+3. เปิดแอปแล้วเริ่มส่งทันที (กด "หยุดส่ง" แล้วจะไม่เริ่มเองจนกว่าจะกด "เริ่มส่ง") Foreground service อ่าน accelerometer ด้วย `SensorManager` แล้วส่งเข้า HA ทาง
    `POST /api/webhook/<webhook_id>` (`register_sensor` ครั้งแรก, `update_sensor_states` ทุกรอบ) ส่งต่อได้แม้ปิดจอ
 
 ## ชื่อเครื่อง

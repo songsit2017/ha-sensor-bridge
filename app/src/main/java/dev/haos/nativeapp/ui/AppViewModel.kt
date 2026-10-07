@@ -137,6 +137,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val client = HaAuth.client(settings)
                 client.ping()
                 Registrar.ensureRegistered(settings)
+                settings.reportingEnabled = true // a fresh sign-in starts sending right away
                 _configured.value = true
             } catch (e: Exception) {
                 settings.refreshToken = ""
@@ -162,6 +163,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 HaAuth.forget()
                 settings.token = token
                 Registrar.ensureRegistered(settings)
+                settings.reportingEnabled = true // a fresh sign-in starts sending right away
                 _configured.value = true
             } catch (e: Exception) {
                 _error.value = "เชื่อมต่อไม่สำเร็จ: ${e.message}"

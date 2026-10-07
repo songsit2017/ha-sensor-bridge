@@ -1,6 +1,7 @@
 package dev.haos.nativeapp.ui
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.haos.nativeapp.sensor.AccelSample
 import dev.haos.nativeapp.sensor.AccelerometerReader
@@ -57,6 +59,15 @@ fun AccelScreen(vm: AppViewModel) {
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { AccelerometerService.start(context) }
+
+    // Start sending as soon as the app opens, unless the user pressed stop.
+    LaunchedEffect(Unit) {
+        if (!vm.settings.reportingEnabled || AccelerometerService.running.value) return@LaunchedEffect
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        else AccelerometerService.start(context)
+    }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),

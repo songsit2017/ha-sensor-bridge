@@ -58,9 +58,9 @@ class Settings(context: Context) {
         get() = prefs.getFloat(KEY_THRESHOLD, 1.5f)
         set(value) = prefs.edit { putFloat(KEY_THRESHOLD, value) }
 
-    /** True while the user wants reporting on; the boot receiver restarts the service from this. */
+    /** True unless the user pressed stop; the app and the boot receiver start the service from this. */
     var reportingEnabled: Boolean
-        get() = prefs.getBoolean(KEY_REPORTING, false)
+        get() = prefs.getBoolean(KEY_REPORTING, true)
         set(value) = prefs.edit { putBoolean(KEY_REPORTING, value) }
 
     fun isEnabled(group: SensorGroup): Boolean = prefs.getBoolean("sensor_${group.key}", group.defaultOn)
