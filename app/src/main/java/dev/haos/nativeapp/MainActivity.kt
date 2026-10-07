@@ -46,7 +46,8 @@ class MainActivity : ComponentActivity() {
         // Cold start via the login redirect (the process was killed while the browser was open).
         if (savedInstanceState == null) intent?.data?.let(vm::handleAuthCallback)
         setContent {
-            AppTheme {
+            val themeMode by vm.themeMode.collectAsStateWithLifecycle()
+            AppTheme(themeMode) {
                 Surface {
                     val configured by vm.configured.collectAsStateWithLifecycle()
                     if (configured) BridgeScaffold(vm)

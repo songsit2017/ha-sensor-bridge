@@ -1,5 +1,6 @@
 package dev.haos.nativeapp.ui.theme
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,8 +11,12 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.dp
 
 private val LightColors = lightColorScheme(
@@ -40,25 +45,52 @@ private val AppShapes = Shapes(
     large = RoundedCornerShape(24.dp),
 )
 
-/** Status colours that Material's scheme doesn't have. */
-object StatusColors {
-    @Composable
-    fun ok(): Color = if (isSystemInDarkTheme()) Color(0xFF7FD48A) else Color(0xFF1B7F37)
+enum class ThemeMode(val key: String, val label: String) {
+    SYSTEM("system", "ตามระบบ"),
+    LIGHT("light", "สว่าง"),
+    DARK("dark", "มืด");
 
-    @Composable
-    fun warning(): Color = if (isSystemInDarkTheme()) Color(0xFFFFB86B) else Color(0xFFB45F06)
+    companion object {
+        fun fromKey(key: String) = values().firstOrNull { it.key == key } ?: SYSTEM
+    }
 }
 
-/** Material You colours on Android 12+, the app's own blue elsewhere. */
+/** Status colours that Material's scheme doesn't have; they follow the theme actually in use. */
+object StatusColors {
+    @Composable
+    private fun dark() = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+    @Composable
+    fun ok(): Color = if (dark()) Color(0xFF7FD48A) else Color(0xFF1B7F37)
+
+    @Composable
+    fun warning(): Color = if (dark()) Color(0xFFFFB86B) else Color(0xFFB45F06)
+}
+
+/** Material You colours on Android 12+, the app's own blue elsewhere. [mode] can override the system day/night. */
 @Composable
-fun AppTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+fun AppTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
+    val dark = when (mode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
     val context = LocalContext.current
     val colors = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         dark -> DarkColors
         else -> LightColors
+    }
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        // Keep the status and navigation bar icons readable when the theme differs from the system's.
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !dark
+            controller.isAppearanceLightNavigationBars = !dark
+        }
     }
     MaterialTheme(colorScheme = colors, shapes = AppShapes, content = content)
 }

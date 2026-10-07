@@ -163,8 +163,13 @@ class AccelerometerService : Service() {
     private fun startInForeground(mic: Boolean): Boolean {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.deleteNotificationChannel(OLD_CHANNEL_ID)
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Accelerometer reporting", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL_ID, "ทำงานเบื้องหลัง", NotificationManager.IMPORTANCE_MIN).apply {
+                    description = "แจ้งว่าแอปกำลังส่งข้อมูลเซนเซอร์ (เงียบ ไม่มีไอคอนบนแถบสถานะ)"
+                    setShowBadge(false)
+                    lockscreenVisibility = Notification.VISIBILITY_SECRET
+                }
             )
         }
         val open = PendingIntent.getActivity(
@@ -175,11 +180,16 @@ class AccelerometerService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("Sending accelerometer to Home Assistant")
+            .setSmallIcon(dev.haos.nativeapp.R.drawable.ic_stat_sensor)
+            .setContentTitle("ส่งข้อมูลเซนเซอร์เข้า Home Assistant")
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setShowWhen(false)
+            .setSilent(true)
             .setOngoing(true)
             .setContentIntent(open)
-            .addAction(0, "Stop", stop)
+            .addAction(0, "หยุดส่ง", stop)
             .build()
         fun typeFor(withMic: Boolean): Int = when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
@@ -207,7 +217,8 @@ class AccelerometerService : Service() {
 
     companion object {
         private const val TAG = "AccelService"
-        private const val CHANNEL_ID = "accel"
+        private const val OLD_CHANNEL_ID = "accel"
+        private const val CHANNEL_ID = "quiet"
         private const val NOTIFICATION_ID = 1
         private const val RETRY_DELAY_MS = 10_000L
         private const val EXTRA_MIC_OK = "mic_ok"

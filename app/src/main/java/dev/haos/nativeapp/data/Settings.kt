@@ -64,6 +64,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean(KEY_LOG, false)
         set(value) = prefs.edit { putBoolean(KEY_LOG, value) }
 
+    /** "system", "light" or "dark". */
+    var themeMode: String
+        get() = prefs.getString(KEY_THEME, "system") ?: "system"
+        set(value) = prefs.edit { putString(KEY_THEME, value) }
+
     var reportingEnabled: Boolean
         get() = prefs.getBoolean(KEY_REPORTING, true)
         set(value) = prefs.edit { putBoolean(KEY_REPORTING, value) }
@@ -110,6 +115,7 @@ class Settings(context: Context) {
         const val KEY_THRESHOLD = "motion_threshold"
         const val KEY_REPORTING = "reporting_enabled"
         const val KEY_LOG = "debug_log"
+        const val KEY_THEME = "theme_mode"
         const val KEY_DEVICE_NAME = "device_name"
         const val KEY_SYNCED_NAME = "synced_device_name"
         const val KEY_DEVICE_ID = "device_id"

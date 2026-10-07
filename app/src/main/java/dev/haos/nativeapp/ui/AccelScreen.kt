@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -40,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.haos.nativeapp.sensor.AccelSample
 import dev.haos.nativeapp.sensor.AccelerometerReader
@@ -66,16 +68,17 @@ fun AccelScreen(vm: AppViewModel) {
         if (reader.isAvailable) reader.samples().collect { sample = it }
     }
 
-    val notificationPermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { AccelerometerService.start(context) }
-
+    // The service's notification is silent and minimised, so the app never asks to post notifications:
+    // on Android 13+ that leaves it out of the shade entirely while the service keeps running.
     fun start() {
         vm.updateReporting((intervalSec * 1000).toLong(), threshold)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        else AccelerometerService.start(context)
+        AccelerometerService.start(context)
+    }
+
+    // Look for a new release every time the app comes to the front.
+    LifecycleResumeEffect(Unit) {
+        vm.checkForUpdate(silent = true)
+        onPauseOrDispose { }
     }
 
     // Start sending as soon as the app opens, unless the user pressed stop.
@@ -88,6 +91,7 @@ fun AccelScreen(vm: AppViewModel) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        UpdateBanner(vm)
         StatusCard(
             vm = vm,
             running = running,
@@ -144,6 +148,7 @@ fun AccelScreen(vm: AppViewModel) {
         BatteryCard()
 
         SectionHeader("ระบบ")
+        ThemeCard(vm)
         UpdateCard(vm)
         LogCard(vm)
 
@@ -218,5 +223,30 @@ private fun StatusCard(
         } else {
             Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) { Text("เริ่มส่ง") }
         }
+    }
+}
+
+/** Shown at the very top as soon as a newer release is found, so nobody has to go and press "check". */
+@Composable
+private fun UpdateBanner(vm: AppViewModel) {
+    val state by vm.update.collectAsStateWithLifecycle()
+    when (val s = state) {
+        is UpdateState.Available -> AppCard(container = MaterialTheme.colorScheme.primaryContainer) {
+            Text(
+                "มีเวอร์ชันใหม่ ${s.info.versionName}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Button(onClick = { vm.downloadAndInstall(s.info) }, modifier = Modifier.fillMaxWidth()) { Text("อัปเดตเลย") }
+        }
+        is UpdateState.Downloading -> AppCard(container = MaterialTheme.colorScheme.primaryContainer) {
+            Text(
+                "กำลังดาวน์โหลดอัปเดต ${(s.progress * 100).toInt()}%",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            LinearProgressIndicator(progress = { s.progress }, modifier = Modifier.fillMaxWidth())
+        }
+        else -> Unit
     }
 }

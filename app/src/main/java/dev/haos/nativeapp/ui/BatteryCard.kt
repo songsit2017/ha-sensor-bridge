@@ -36,6 +36,11 @@ fun BatteryCard() {
         title = "กันระบบปิดแอปตอนประหยัดแบต",
         subtitle = if (exempt) "ยกเว้นแล้ว แอปทำงานเบื้องหลังได้ต่อเนื่อง" else null,
     ) {
+        Text(
+            "แอปทำงานเบื้องหลังแบบเงียบ ไม่ขึ้นแจ้งเตือน Android จะแสดงแอปนี้ในรายการ \"แอปที่กำลังทำงาน\" เท่านั้น",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         if (!exempt) {
             Text(
                 "ระบบอาจหยุดแอปตอนปิดจอหรือประหยัดแบต ค่าที่ส่งเข้า HA จะหยุดไป",

@@ -9,6 +9,7 @@ import dev.haos.nativeapp.data.Settings
 import dev.haos.nativeapp.ha.HaAuth
 import dev.haos.nativeapp.ha.HaClient
 import dev.haos.nativeapp.ha.Registrar
+import dev.haos.nativeapp.ui.theme.ThemeMode
 import dev.haos.nativeapp.update.InstallResult
 import dev.haos.nativeapp.update.UpdateInfo
 import dev.haos.nativeapp.update.Updater
@@ -33,6 +34,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _update = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val update: StateFlow<UpdateState> = _update.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(ThemeMode.fromKey(settings.themeMode))
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: ThemeMode) {
+        settings.themeMode = mode.key
+        _themeMode.value = mode
+    }
 
     private val _nameStatus = MutableStateFlow<String?>(null)
     val nameStatus: StateFlow<String?> = _nameStatus.asStateFlow()
@@ -62,15 +71,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** A silent check never changes what's on screen unless it finds something, so it can run on every resume. */
     fun checkForUpdate(silent: Boolean = false) {
-        if (_update.value is UpdateState.Checking || _update.value is UpdateState.Downloading) return
+        val current = _update.value
+        if (current is UpdateState.Checking || current is UpdateState.Downloading) return
+        if (silent && current is UpdateState.Available) return
         viewModelScope.launch {
-            _update.value = UpdateState.Checking
-            _update.value = try {
+            if (!silent) _update.value = UpdateState.Checking
+            val result = try {
                 updater.check()?.let { UpdateState.Available(it) } ?: UpdateState.UpToDate
             } catch (e: Exception) {
-                if (silent) UpdateState.Idle else UpdateState.Failed(e.message ?: e.javaClass.simpleName)
+                if (silent) null else UpdateState.Failed(e.message ?: e.javaClass.simpleName)
             }
+            if (result != null) _update.value = result
         }
     }
 
