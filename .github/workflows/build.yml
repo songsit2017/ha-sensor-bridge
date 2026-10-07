@@ -8,6 +8,12 @@ on:
 permissions:
   contents: write
 
+# One build per branch at a time, so two quick pushes can't publish out of order and leave
+# an older version marked "latest" (the app updates from the latest release).
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
