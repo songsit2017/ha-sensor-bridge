@@ -273,9 +273,9 @@ class MotionEvents(
         const val MOVE_LINEAR = 1.2f
         const val MOVE_GRACE_MS = 300L
 
-        const val TAP_PEAK = 2.5f
+        const val TAP_PEAK = 1.5f
         const val TAP_MAX_PEAK = 60f
-        const val PULSE_END_LINEAR = 2f
+        const val PULSE_END_LINEAR = 1.0f
         const val TAP_MAX_PULSE_MS = 200L
         const val PULSE_GAP_MS = 80L
         const val TAP_MIN_GAP_MS = 100L
