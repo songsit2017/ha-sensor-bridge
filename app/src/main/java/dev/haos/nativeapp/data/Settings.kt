@@ -10,6 +10,7 @@ import java.util.UUID
  * The token is stored encrypted with a key held in the Android Keystore (see [TokenCipher]).
  */
 class Settings(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("haos_native", Context.MODE_PRIVATE)
 
     var baseUrl: String
@@ -56,6 +57,16 @@ class Settings(context: Context) {
         get() = prefs.getFloat(KEY_THRESHOLD, 1.5f)
         set(value) = prefs.edit { putFloat(KEY_THRESHOLD, value) }
 
+    /** Name shown in HA. Blank means "use the name the owner set on the phone". */
+    var deviceName: String
+        get() = prefs.getString(KEY_DEVICE_NAME, null)?.takeIf { it.isNotBlank() } ?: DeviceName.detect(appContext)
+        set(value) = prefs.edit { putString(KEY_DEVICE_NAME, value.trim()) }
+
+    /** Name HA currently has, so a changed name can be sent with update_registration. */
+    var syncedDeviceName: String?
+        get() = prefs.getString(KEY_SYNCED_NAME, null)
+        set(value) = prefs.edit { if (value == null) remove(KEY_SYNCED_NAME) else putString(KEY_SYNCED_NAME, value) }
+
     /** Stable per-install id; also used as the prefix for sensor unique_ids. */
     val deviceId: String
         get() = prefs.getString(KEY_DEVICE_ID, null) ?: UUID.randomUUID().toString().also {
@@ -68,6 +79,7 @@ class Settings(context: Context) {
     fun clearRegistration() = prefs.edit {
         remove(KEY_WEBHOOK_ID)
         remove(KEY_SENSOR_VERSION)
+        remove(KEY_SYNCED_NAME)
     }
 
     private companion object {
@@ -79,6 +91,8 @@ class Settings(context: Context) {
         const val KEY_SENSOR_VERSION = "sensor_set_version"
         const val KEY_INTERVAL = "report_interval_ms"
         const val KEY_THRESHOLD = "motion_threshold"
+        const val KEY_DEVICE_NAME = "device_name"
+        const val KEY_SYNCED_NAME = "synced_device_name"
         const val KEY_DEVICE_ID = "device_id"
     }
 }

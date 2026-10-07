@@ -34,9 +34,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _update = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val update: StateFlow<UpdateState> = _update.asStateFlow()
 
+    private val _nameStatus = MutableStateFlow<String?>(null)
+    val nameStatus: StateFlow<String?> = _nameStatus.asStateFlow()
+
     init {
         // Look for a new release every time the app opens; failures stay quiet until asked.
         checkForUpdate(silent = true)
+        // Push a changed device name (or newly added sensors) to HA for already-registered phones.
+        if (settings.isConfigured) viewModelScope.launch { runCatching { Registrar.ensureRegistered(settings) } }
+    }
+
+    /** Name to show in HA; used on the sign-in screen before the phone is registered. */
+    fun setDeviceName(name: String) {
+        settings.deviceName = name
+    }
+
+    /** Rename an already-registered phone in HA. */
+    fun renameDevice(name: String) {
+        settings.deviceName = name
+        viewModelScope.launch {
+            _nameStatus.value = try {
+                Registrar.ensureRegistered(settings)
+                "บันทึกชื่อแล้ว"
+            } catch (e: Exception) {
+                "บันทึกไม่สำเร็จ: ${e.message}"
+            }
+        }
     }
 
     fun checkForUpdate(silent: Boolean = false) {

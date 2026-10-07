@@ -33,6 +33,7 @@ fun SetupScreen(vm: AppViewModel) {
     val error by vm.error.collectAsStateWithLifecycle()
     var url by rememberSaveable { mutableStateOf(vm.settings.baseUrl.ifEmpty { "http://homeassistant.local:8123" }) }
     var token by rememberSaveable { mutableStateOf("") }
+    var deviceName by rememberSaveable { mutableStateOf(vm.settings.deviceName) }
     var advanced by rememberSaveable { mutableStateOf(false) }
 
     Column(
@@ -48,10 +49,17 @@ fun SetupScreen(vm: AppViewModel) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth(),
         )
+        OutlinedTextField(
+            value = deviceName,
+            onValueChange = { deviceName = it },
+            label = { Text("ชื่อเครื่องที่จะแสดงใน HA") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
         Button(
-            onClick = { vm.startLogin(url) },
+            onClick = { vm.setDeviceName(deviceName); vm.startLogin(url) },
             enabled = !busy && url.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -80,7 +88,7 @@ fun SetupScreen(vm: AppViewModel) {
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedButton(
-                onClick = { vm.connect(url, token) },
+                onClick = { vm.setDeviceName(deviceName); vm.connect(url, token) },
                 enabled = !busy && url.isNotBlank() && token.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("เชื่อมต่อด้วย token") }

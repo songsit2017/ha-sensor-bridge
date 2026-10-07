@@ -16,6 +16,11 @@
 3. Foreground service อ่าน accelerometer ด้วย `SensorManager` แล้วส่งเข้า HA ทาง
    `POST /api/webhook/<webhook_id>` (`register_sensor` ครั้งแรก, `update_sensor_states` ทุกรอบ) ส่งต่อได้แม้ปิดจอ
 
+## ชื่อเครื่อง
+
+แอปใช้ชื่อที่เจ้าของตั้งไว้ในมือถือ (Settings → About phone → Device name, ถ้าไม่มีใช้ชื่อ Bluetooth, ถ้าไม่มีอีกใช้ชื่อรุ่น)
+แก้ชื่อได้ตอนล็อกอินและในแอปภายหลัง ชื่อที่เปลี่ยนจะส่งเข้า HA ผ่าน `update_registration` ไม่ต้องลงทะเบียนใหม่
+
 ## Entity ที่จะโผล่ใน HA
 
 - `sensor.<ชื่อเครื่อง>_accelerometer_x` / `_y` / `_z` (m/s²)
