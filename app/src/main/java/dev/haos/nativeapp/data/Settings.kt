@@ -59,6 +59,11 @@ class Settings(context: Context) {
         set(value) = prefs.edit { putFloat(KEY_THRESHOLD, value) }
 
     /** True unless the user pressed stop; the app and the boot receiver start the service from this. */
+    /** Whether the tuning log is being recorded; off unless the user turns it on. */
+    var logEnabled: Boolean
+        get() = prefs.getBoolean(KEY_LOG, false)
+        set(value) = prefs.edit { putBoolean(KEY_LOG, value) }
+
     var reportingEnabled: Boolean
         get() = prefs.getBoolean(KEY_REPORTING, true)
         set(value) = prefs.edit { putBoolean(KEY_REPORTING, value) }
@@ -104,6 +109,7 @@ class Settings(context: Context) {
         const val KEY_INTERVAL = "report_interval_ms"
         const val KEY_THRESHOLD = "motion_threshold"
         const val KEY_REPORTING = "reporting_enabled"
+        const val KEY_LOG = "debug_log"
         const val KEY_DEVICE_NAME = "device_name"
         const val KEY_SYNCED_NAME = "synced_device_name"
         const val KEY_DEVICE_ID = "device_id"

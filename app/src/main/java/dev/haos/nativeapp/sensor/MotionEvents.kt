@@ -6,7 +6,11 @@ import android.os.SystemClock
  * Turns the accelerometer stream into discrete events: shake, face-down, double-tap, pick-up
  * and fall. Only the groups in [enabled] are evaluated. [onEvent] asks for an immediate report.
  */
-class MotionEvents(private val enabled: Set<SensorGroup>, private val onEvent: () -> Unit) {
+class MotionEvents(
+    private val enabled: Set<SensorGroup>,
+    private val log: (String, String) -> Unit = { _, _ -> },
+    private val onEvent: () -> Unit,
+) {
     @Volatile private var shakeUntil = 0L
     @Volatile private var tapUntil = 0L
     @Volatile private var pickUpUntil = 0L
@@ -23,6 +27,7 @@ class MotionEvents(private val enabled: Set<SensorGroup>, private val onEvent: (
     private var restingSince = 0L
     private var moveCount = 0
     private var wasResting = false
+    private var restedMs = 0L
 
     private var freeFallSince = 0L
     private var fallArmedUntil = 0L
@@ -48,6 +53,7 @@ class MotionEvents(private val enabled: Set<SensorGroup>, private val onEvent: (
             shakePeaks.addLast(now)
             while (shakePeaks.first() < now - SHAKE_WINDOW_MS) shakePeaks.removeFirst()
             if (shakePeaks.size >= SHAKE_PEAKS) {
+                log("SHAKE", "peaks=${shakePeaks.size} linear=%.2f".format(s.linear))
                 shakePeaks.clear()
                 shakeUntil = now + HOLD_MS
                 onEvent()
@@ -60,6 +66,7 @@ class MotionEvents(private val enabled: Set<SensorGroup>, private val onEvent: (
         val down = if (faceDown) s.z < -5f else s.z < -7f
         if (down != faceDown) {
             faceDown = down
+            log("FACE_DOWN", "on=$down z=%.2f".format(s.z))
             onEvent()
         }
     }
@@ -70,6 +77,7 @@ class MotionEvents(private val enabled: Set<SensorGroup>, private val onEvent: (
         val gap = now - lastSpike
         val quietBefore = lastSpike - prevSpike >= 400L
         if (lastSpike != 0L && gap in 100L..500L && quietBefore) {
+            log("DOUBLE_TAP", "gap_ms=$gap linear=%.2f".format(s.linear))
             tapUntil = now + HOLD_MS
             lastSpike = 0L
             prevSpike = 0L
@@ -85,10 +93,12 @@ class MotionEvents(private val enabled: Set<SensorGroup>, private val onEvent: (
         if (s.linear > MOVE_LINEAR) {
             moveCount++
             if (moveCount == 1) {
-                wasResting = restingSince != 0L && now - restingSince >= REST_MS
+                restedMs = if (restingSince != 0L) now - restingSince else 0L
+                wasResting = restedMs >= REST_MS
                 restingSince = 0L
             }
             if (moveCount >= MOVE_SAMPLES && wasResting) {
+                log("PICK_UP", "rested_ms=$restedMs moveSamples=$moveCount linear=%.2f".format(s.linear))
                 wasResting = false
                 pickUpUntil = now + HOLD_MS
                 onEvent()
@@ -109,6 +119,7 @@ class MotionEvents(private val enabled: Set<SensorGroup>, private val onEvent: (
             freeFallSince = 0L
         }
         if (g > IMPACT_G && now < fallArmedUntil) {
+            log("FALL", "impact_g=%.1f".format(g / 9.81f))
             fallArmedUntil = 0L
             fallUntil = now + FALL_HOLD_MS
             onEvent()

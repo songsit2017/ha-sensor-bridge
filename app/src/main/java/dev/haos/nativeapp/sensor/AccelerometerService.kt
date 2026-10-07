@@ -80,16 +80,22 @@ class AccelerometerService : Service() {
         _lastError.value = null
 
         settings.reportingEnabled = true
-        events = MotionEvents(enabled) { sendNow.trySend(Unit) }
+        DebugLog.init(this)
+        DebugLog.log(
+            "START",
+            "sensors=${enabled.joinToString { it.key }} interval_ms=${settings.reportIntervalMs} threshold=${settings.motionThreshold} mic=$useMic",
+        )
+        events = MotionEvents(enabled, DebugLog::event) { sendNow.trySend(Unit) }
         scope.launch {
             AccelerometerReader(this@AccelerometerService).samples().collect { s ->
                 latest = s
                 peakLinear = max(peakLinear, s.linear)
+                DebugLog.sample(s)
                 events.process(s)
                 if (SensorGroup.VIBRATION in enabled) vibrationMeter.add(s.linear)
                 if (SensorGroup.POSTURE in enabled) {
                     val next = Posture.of(s, posture)
-                    if (next != posture) { posture = next; sendNow.trySend(Unit) }
+                    if (next != posture) { DebugLog.log("POSTURE", "$posture -> $next z=%.2f".format(s.z)); posture = next; sendNow.trySend(Unit) }
                 }
             }
         }
@@ -131,6 +137,10 @@ class AccelerometerService : Service() {
                             enabled = enabled,
                         ),
                     )
+                    DebugLog.log(
+                        "REPORT",
+                        "linear_peak=%.2f motion=${peak >= settings.motionThreshold} shake=${events.shaking} tap=${events.doubleTapped} pick=${events.pickedUp} fall=${events.fell} posture=$posture".format(peak),
+                    )
                     _lastReportAt.value = System.currentTimeMillis()
                     _lastError.value = null
                 }
@@ -147,6 +157,7 @@ class AccelerometerService : Service() {
 
     private suspend fun onError(e: Exception) {
         Log.w(TAG, "Report failed", e)
+        DebugLog.log("ERROR", e.message ?: e.javaClass.simpleName)
         _lastError.value = e.message ?: e.javaClass.simpleName
         delay(RETRY_DELAY_MS)
     }
@@ -191,6 +202,7 @@ class AccelerometerService : Service() {
     }
 
     override fun onDestroy() {
+        DebugLog.log("STOP", "service destroyed")
         scope.cancel()
         _running.value = false
         super.onDestroy()

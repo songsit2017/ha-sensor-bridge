@@ -77,6 +77,7 @@ fun AccelScreen(vm: AppViewModel) {
         DeviceNameCard(vm)
         BatteryCard()
         SensorsCard(vm)
+        LogCard(vm)
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
