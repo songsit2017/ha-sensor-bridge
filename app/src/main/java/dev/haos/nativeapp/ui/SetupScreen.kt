@@ -2,6 +2,18 @@ package dev.haos.nativeapp.ui
 
 import android.net.Uri
 import androidx.compose.foundation.background
+import dev.haos.nativeapp.R
+import dev.haos.nativeapp.BuildConfig
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -100,99 +112,126 @@ fun SetupScreen(vm: AppViewModel) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding(),
     ) {
+        // Header: Home Assistant blue, with the app's mark (a sensor sending out readings).
         Column(
-            Modifier.fillMaxWidth().padding(top = 16.dp),
+            Modifier.fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(listOf(Color(0xFF03A9F4), Color(0xFF0277BD))),
+                    RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp),
+                )
+                .statusBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Box(
-                Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.Home, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
-            }
-            Text("HA Sensor Bridge", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            Image(
+                painter = painterResource(R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.size(104.dp).scale(1.35f),
+            )
             Text(
-                "ส่งค่าเซนเซอร์ของมือถือเข้า Home Assistant ของคุณเอง ใช้คู่กับแอป Companion ได้เลย",
+                "HA Sensor Bridge",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+            )
+            Text(
+                "ส่งค่าเซนเซอร์ของมือถือเข้า Home Assistant ของคุณเอง",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.9f),
                 textAlign = TextAlign.Center,
             )
         }
 
-        AppCard(title = "ข้อมูลของคุณอยู่ที่บ้านคุณ") {
-            Promise("ข้อมูลเซนเซอร์ส่งไปที่เซิร์ฟเวอร์ HA ของคุณเท่านั้น")
-            Promise("ไม่มี analytics และไม่มีเซิร์ฟเวอร์กลางของแอปนี้")
-            Promise("ล็อกอินด้วยบัญชี HA ของคุณเอง token เก็บเข้ารหัสในเครื่อง")
-        }
-
-        AppCard(title = "เชื่อมต่อ Home Assistant") {
-            OutlinedButton(onClick = { scanError = null; scanning = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("สแกน QR จากสมาชิกที่ตั้งค่าแล้ว")
-            }
-            scanError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
-            Text(
-                "หรือกรอกที่อยู่เอง",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedTextField(
-                value = url,
-                onValueChange = { url = it },
-                label = { Text("URL ของ HA") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = deviceName,
-                onValueChange = { deviceName = it },
-                label = { Text("ชื่อเครื่องที่จะแสดงใน HA") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
-
-            Button(
-                onClick = { vm.setDeviceName(deviceName); vm.startLogin(url) },
-                enabled = !busy && url.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                else Text("เข้าสู่ระบบด้วยบัญชี HA")
-            }
-            Text(
-                "จะเปิดหน้าล็อกอินของ HA ให้ใส่ชื่อผู้ใช้และรหัสผ่านของคุณเอง ไม่ต้องสร้าง token",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        TextButton(onClick = { advanced = !advanced }) {
-            Text(if (advanced) "ซ่อนตัวเลือกขั้นสูง" else "ขั้นสูง: ใช้ Long-lived access token")
-        }
-        if (advanced) {
-            AppCard(
-                title = "Long-lived access token",
-                subtitle = "สร้างได้ที่ HA → โปรไฟล์ → Security → Long-lived access tokens",
-            ) {
+        Column(
+            Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SectionHeader("เริ่มต้นใช้งาน")
+            AppCard(title = "เชื่อมต่อ Home Assistant", subtitle = "ใส่ที่อยู่เซิร์ฟเวอร์ แล้วล็อกอินด้วยบัญชี HA ของคุณเอง") {
+                OutlinedButton(onClick = { scanError = null; scanning = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("สแกน QR จากสมาชิกที่ตั้งค่าแล้ว")
+                }
+                scanError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                Text(
+                    "หรือกรอกที่อยู่เอง",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 OutlinedTextField(
-                    value = token,
-                    onValueChange = { token = it },
-                    label = { Text("Long-lived access token") },
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("URL ของ HA") },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedButton(
-                    onClick = { vm.setDeviceName(deviceName); vm.connect(url, token) },
-                    enabled = !busy && url.isNotBlank() && token.isNotBlank(),
+                OutlinedTextField(
+                    value = deviceName,
+                    onValueChange = { deviceName = it },
+                    label = { Text("ชื่อเครื่องที่จะแสดงใน HA") },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("เชื่อมต่อด้วย token") }
+                )
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+
+                Button(
+                    onClick = { vm.setDeviceName(deviceName); vm.startLogin(url) },
+                    enabled = !busy && url.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Text("เข้าสู่ระบบด้วยบัญชี HA")
+                }
+                Text(
+                    "จะเปิดหน้าล็อกอินของ HA ให้ใส่ชื่อผู้ใช้และรหัสผ่านของคุณเอง ไม่ต้องสร้าง token",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
+
+            SectionHeader("ความเป็นส่วนตัว")
+            AppCard(title = "ข้อมูลของคุณอยู่ที่บ้านคุณ") {
+                Promise("ข้อมูลเซนเซอร์ส่งไปที่เซิร์ฟเวอร์ HA ของคุณเท่านั้น")
+                Promise("ไม่มี analytics และไม่มีเซิร์ฟเวอร์กลางของแอปนี้")
+                Promise("ล็อกอินด้วยบัญชี HA ของคุณเอง token เก็บเข้ารหัสในเครื่อง")
+            }
+
+            TextButton(onClick = { advanced = !advanced }) {
+                Text(if (advanced) "ซ่อนตัวเลือกขั้นสูง" else "ขั้นสูง: ใช้ Long-lived access token")
+            }
+            if (advanced) {
+                AppCard(
+                    title = "Long-lived access token",
+                    subtitle = "สร้างได้ที่ HA → โปรไฟล์ → Security → Long-lived access tokens",
+                ) {
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = { token = it },
+                        label = { Text("Long-lived access token") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedButton(
+                        onClick = { vm.setDeviceName(deviceName); vm.connect(url, token) },
+                        enabled = !busy && url.isNotBlank() && token.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("เชื่อมต่อด้วย token") }
+                }
+            }
+
+            Text(
+                "แอปเสริมอิสระสำหรับ Home Assistant ไม่ใช่แอปทางการของ Home Assistant\n" +
+                    "เวอร์ชัน ${BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
+            )
+            Spacer(Modifier.navigationBarsPadding())
         }
     }
 }

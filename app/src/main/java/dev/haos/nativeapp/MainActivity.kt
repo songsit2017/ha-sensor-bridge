@@ -19,7 +19,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import dev.haos.nativeapp.ui.theme.isDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
@@ -64,7 +67,7 @@ class MainActivity : ComponentActivity() {
                 Surface {
                     val configured by vm.configured.collectAsStateWithLifecycle()
                     if (configured) BridgeScaffold(vm)
-                    else Scaffold { p -> Surface(Modifier.padding(p)) { SetupScreen(vm) } }
+                    else SetupScreen(vm)
                 }
             }
         }
@@ -103,10 +106,15 @@ private fun BridgeScaffold(vm: AppViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isDarkTheme()) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.primary,
+                    titleContentColor = if (isDarkTheme()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = if (isDarkTheme()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
+                ),
                 title = {
                     Column {
                         Text("Sensor Bridge", style = MaterialTheme.typography.titleLarge)
-                        Text(host, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(host, style = MaterialTheme.typography.bodySmall, color = LocalContentColor.current.copy(alpha = 0.8f))
                     }
                 },
                 actions = {
