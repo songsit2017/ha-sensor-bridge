@@ -56,6 +56,9 @@ class MotionEvents(
     private var secondPulseEnd = 0L
     private var tapGap = 0L
     private var tapPeak = 0f
+    private var tapGx = 0f
+    private var tapGy = 0f
+    private var tapGz = 0f
 
     // posture
     private var pendingPosture: String? = null
@@ -149,9 +152,17 @@ class MotionEvents(
         val l = s.linear
         if (secondPulseEnd != 0L) {
             // Waiting for quiet after the second pulse; any further motion cancels it.
-            if (l > PULSE_END_LINEAR) { resetTap(); return }
+            if (l > PULSE_END_LINEAR) { log("TAP_CANCELLED", "motion after the second pulse"); resetTap(); return }
             if (now - secondPulseEnd >= TAP_QUIET_AFTER_MS) {
-                log("DOUBLE_TAP", "gap_ms=$tapGap peak=%.1f".format(tapPeak))
+                // Tapping a phone lying on a surface doesn't turn it; handling or setting it down does.
+                val tilt = angleDeg(tapGx, tapGy, tapGz, gx, gy, gz)
+                if (tilt > TAP_MAX_TILT_DEG) {
+                    log("TAP_REJECTED", "tilt_deg=%.1f gap_ms=$tapGap peak=%.1f".format(tilt, tapPeak))
+                    resetTap()
+                    lastTapDone = now
+                    return
+                }
+                log("DOUBLE_TAP", "gap_ms=$tapGap peak=%.1f tilt_deg=%.1f".format(tapPeak, tilt))
                 tapUntil = SystemClock.elapsedRealtime() + HOLD_MS
                 resetTap()
                 lastTapDone = now
@@ -163,6 +174,7 @@ class MotionEvents(
             if (l > TAP_PEAK && now - lastTapDone > TAP_COOLDOWN_MS) {
                 if (firstPulseAt != 0L && now - firstPulseAt !in TAP_MIN_GAP_MS..TAP_MAX_GAP_MS) firstPulseAt = 0L
                 if (firstPulseAt == 0L && !restedBefore) return
+                if (firstPulseAt == 0L) { tapGx = gx; tapGy = gy; tapGz = gz }
                 inPulse = true; pulseStart = now; pulseLastAbove = now; pulseMax = l
             } else if (firstPulseAt != 0L && now - firstPulseAt > TAP_MAX_GAP_MS) {
                 firstPulseAt = 0L
@@ -189,6 +201,14 @@ class MotionEvents(
     }
 
     private var lastTapDone = 0L
+
+    private fun angleDeg(ax: Float, ay: Float, az: Float, bx: Float, by: Float, bz: Float): Float {
+        val na = sqrt(ax * ax + ay * ay + az * az)
+        val nb = sqrt(bx * bx + by * by + bz * bz)
+        if (na < 1f || nb < 1f) return 180f
+        val c = ((ax * bx + ay * by + az * bz) / (na * nb)).coerceIn(-1f, 1f)
+        return Math.toDegrees(kotlin.math.acos(c.toDouble())).toFloat()
+    }
 
     private fun resetTap() {
         inPulse = false; firstPulseAt = 0L; secondPulseEnd = 0L
@@ -245,7 +265,8 @@ class MotionEvents(
         const val PULSE_GAP_MS = 80L
         const val TAP_MIN_GAP_MS = 100L
         const val TAP_MAX_GAP_MS = 600L
-        const val TAP_REST_BEFORE_MS = 500L
+        const val TAP_REST_BEFORE_MS = 1_000L
+        const val TAP_MAX_TILT_DEG = 6f
         const val TAP_QUIET_AFTER_MS = 250L
         const val TAP_COOLDOWN_MS = 800L
 
