@@ -40,8 +40,36 @@ class Updater(private val context: Context) {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    /** Returns the newer release, or null if this build is already the latest. */
-    suspend fun check(): UpdateInfo? = withContext(Dispatchers.IO) {
+    /**
+     * Returns the newer release, or null if this build is already the latest. GitHub's API allows
+     * only 60 anonymous calls an hour per address, so when it refuses the check falls back to
+     * following the public "latest release" redirect, which has no such limit.
+     */
+    suspend fun check(): UpdateInfo? = try {
+        checkViaApi()
+    } catch (e: HaException) {
+        if (e.message?.contains("404") == true || e.message?.contains("Release") == true) throw e
+        checkViaRedirect()
+    } catch (e: java.io.IOException) {
+        checkViaRedirect()
+    }
+
+    private suspend fun checkViaRedirect(): UpdateInfo? = withContext(Dispatchers.IO) {
+        val client = http.newBuilder().followRedirects(false).build()
+        val request = Request.Builder().url("https://github.com/$REPO/releases/latest").build()
+        val location = client.newCall(request).execute().use { r -> r.header("Location").orEmpty() }
+        val tag = location.substringAfter("/releases/tag/", "").substringBefore('?').trim('/')
+        val code = tag.removePrefix("v").toIntOrNull() ?: throw HaException("ตรวจเวอร์ชันล่าสุดไม่ได้")
+        if (code <= BuildConfig.VERSION_CODE) return@withContext null
+        UpdateInfo(
+            versionCode = code,
+            versionName = "0.1.$code",
+            downloadUrl = "https://github.com/$REPO/releases/download/$tag/ha-sensor-bridge.apk",
+            sha256 = null, // not in the redirect; Android still verifies the signing key on install
+        )
+    }
+
+    private suspend fun checkViaApi(): UpdateInfo? = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url("https://api.github.com/repos/$REPO/releases/latest")
             .header("Accept", "application/vnd.github+json")

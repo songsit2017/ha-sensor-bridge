@@ -95,6 +95,7 @@ private fun MainTab.icon(): ImageVector = when (this) {
 private fun BridgeScaffold(vm: AppViewModel) {
     var tab by rememberSaveable { mutableStateOf(MainTab.HOME) }
     val update by vm.update.collectAsStateWithLifecycle()
+    var dismissedUpdate by rememberSaveable { mutableStateOf(0) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
     val host = remember(vm.settings.baseUrl) { Uri.parse(vm.settings.baseUrl).host ?: vm.settings.baseUrl }
@@ -142,6 +143,24 @@ private fun BridgeScaffold(vm: AppViewModel) {
         },
     ) { padding ->
         Surface(Modifier.padding(padding)) { AccelScreen(vm, tab) }
+    }
+
+    // A new release pops up as soon as it is found, instead of waiting to be noticed.
+    (update as? UpdateState.Available)?.takeIf { it.info.versionCode != dismissedUpdate }?.let { available ->
+        AlertDialog(
+            onDismissRequest = { dismissedUpdate = available.info.versionCode },
+            title = { Text("มีเวอร์ชันใหม่") },
+            text = { Text("${available.info.versionName} พร้อมให้อัปเดตแล้ว อัปเดตตอนนี้เลยไหม") },
+            confirmButton = {
+                TextButton(onClick = {
+                    dismissedUpdate = available.info.versionCode
+                    vm.downloadAndInstall(available.info)
+                }) { Text("อัปเดตเลย") }
+            },
+            dismissButton = {
+                TextButton(onClick = { dismissedUpdate = available.info.versionCode }) { Text("ภายหลัง") }
+            },
+        )
     }
 
     if (confirmSignOut) {
