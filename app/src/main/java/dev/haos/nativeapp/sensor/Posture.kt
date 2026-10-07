@@ -3,7 +3,7 @@ package dev.haos.nativeapp.sensor
 import kotlin.math.abs
 import kotlin.math.sqrt
 
-/** How the phone is resting, from the direction of gravity. Keeps the previous value near a boundary. */
+/** How the phone is resting, from the direction of gravity. */
 object Posture {
     const val FACE_UP = "face_up"
     const val FACE_DOWN = "face_down"
@@ -13,22 +13,25 @@ object Posture {
     const val RIGHT = "on_right_side"
     const val TILTED = "tilted"
 
-    fun of(s: AccelSample, previous: String?): String {
+    /**
+     * Posture for a (smoothed) gravity vector. Near a boundary the [previous] posture is kept
+     * unless gravity points clearly (>= 85%) along the new axis.
+     */
+    fun classify(x: Float, y: Float, z: Float, previous: String?): String {
+        val g = sqrt(x * x + y * y + z * z)
+        if (g < 1f) return previous ?: TILTED
         val candidate = when {
-            abs(s.z) >= abs(s.x) && abs(s.z) >= abs(s.y) -> if (s.z >= 0) FACE_UP else FACE_DOWN
-            abs(s.y) >= abs(s.x) -> if (s.y >= 0) UPRIGHT else UPSIDE_DOWN
-            else -> if (s.x >= 0) RIGHT else LEFT
+            abs(z) >= abs(x) && abs(z) >= abs(y) -> if (z >= 0) FACE_UP else FACE_DOWN
+            abs(y) >= abs(x) -> if (y >= 0) UPRIGHT else UPSIDE_DOWN
+            else -> if (x >= 0) RIGHT else LEFT
         }
-        val g = s.magnitude
-        // Hold the old posture unless gravity points clearly (>~70%) along the new axis.
         val dominant = when (candidate) {
-            FACE_UP, FACE_DOWN -> abs(s.z)
-            UPRIGHT, UPSIDE_DOWN -> abs(s.y)
-            else -> abs(s.x)
-        }
-        if (g < 3f) return previous ?: TILTED // free fall: gravity is unreadable
-        if (dominant / g >= 0.85f) return candidate
-        if (previous == null || previous == TILTED) return if (dominant / g >= 0.7f) candidate else TILTED
+            FACE_UP, FACE_DOWN -> abs(z)
+            UPRIGHT, UPSIDE_DOWN -> abs(y)
+            else -> abs(x)
+        } / g
+        if (dominant >= 0.85f) return candidate
+        if (previous == null || previous == TILTED) return if (dominant >= 0.7f) candidate else TILTED
         return previous
     }
 }

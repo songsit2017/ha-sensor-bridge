@@ -51,7 +51,6 @@ class AccelerometerService : Service() {
     @Volatile private var heading: Float? = null
     @Volatile private var soundDb: Float? = null
     @Volatile private var magnetic: Float? = null
-    @Volatile private var posture: String? = null
     private val vibrationMeter = VibrationMeter()
     private var enabled: Set<SensorGroup> = emptySet()
     private lateinit var events: MotionEvents
@@ -93,10 +92,6 @@ class AccelerometerService : Service() {
                 DebugLog.sample(s)
                 events.process(s)
                 if (SensorGroup.VIBRATION in enabled) vibrationMeter.add(s.linear)
-                if (SensorGroup.POSTURE in enabled) {
-                    val next = Posture.of(s, posture)
-                    if (next != posture) { DebugLog.log("POSTURE", "$posture -> $next z=%.2f".format(s.z)); posture = next; sendNow.trySend(Unit) }
-                }
             }
         }
         if (SensorGroup.GYRO in enabled) scope.launch { GyroReader.samples(this@AccelerometerService).collect { gyro = it } }
@@ -117,6 +112,8 @@ class AccelerometerService : Service() {
                     val sample = latest ?: continue
                     val peak = peakLinear
                     peakLinear = 0f
+                    val vibration = if (SensorGroup.VIBRATION in enabled) vibrationMeter.take() else null
+                    val posture = if (SensorGroup.POSTURE in enabled) events.posture else null
                     AccelSensors.update(
                         client, webhookId, settings.deviceId,
                         SensorReading(
@@ -132,14 +129,14 @@ class AccelerometerService : Service() {
                             heading = heading,
                             soundDb = soundDb,
                             magneticUt = magnetic,
-                            vibration = if (SensorGroup.VIBRATION in enabled) vibrationMeter.take() else null,
+                            vibration = vibration,
                             posture = posture,
                             enabled = enabled,
                         ),
                     )
                     DebugLog.log(
                         "REPORT",
-                        "linear_peak=%.2f motion=${peak >= settings.motionThreshold} shake=${events.shaking} tap=${events.doubleTapped} pick=${events.pickedUp} fall=${events.fell} posture=$posture".format(peak),
+                        "linear_peak=%.2f motion=${peak >= settings.motionThreshold} shake=${events.shaking} tap=${events.doubleTapped} pick=${events.pickedUp} fall=${events.fell} posture=${events.posture} vib=${vibration?.let { "%.2f".format(it) }} mag=${magnetic?.let { "%.1f".format(it) }} heading=${heading?.let { "%.0f".format(it) }} gyro=${gyro?.let { "%.1f".format(it.magnitude) }} db=${soundDb?.let { "%.0f".format(it) }}".format(peak),
                     )
                     _lastReportAt.value = System.currentTimeMillis()
                     _lastError.value = null

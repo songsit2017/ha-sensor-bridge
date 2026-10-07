@@ -22,7 +22,7 @@ object DebugLog {
     private class Point(val t: Long, val x: Float, val y: Float, val z: Float, val linear: Float)
 
     private const val MAX_FILE_BYTES = 1_000_000L
-    private const val RING_SIZE = 300 // ~6 s at the game sampling rate
+    private const val RING_SIZE = 800 // ~6 s at 125 Hz
     private const val TRACE_COOLDOWN_MS = 2_000L
 
     private val ring = ArrayDeque<Point>(RING_SIZE + 1)
