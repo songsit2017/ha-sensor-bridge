@@ -62,6 +62,8 @@ fun AccelScreen(vm: AppViewModel) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        UpdateCard(vm)
+
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("ค่าความเร่งตอนนี้ (m/s²)", style = MaterialTheme.typography.titleMedium)

@@ -24,6 +24,16 @@
 
 ตั้งความถี่การส่ง (0.5–30 วินาที) และเกณฑ์การเคลื่อนที่ได้ในแอป
 
+## อัปเดตอัตโนมัติ
+
+- ทุกครั้งที่ push เข้า `main` GitHub Actions จะ build APK เซ็นด้วยกุญแจคงที่ แล้วปล่อยเป็น GitHub Release (tag `v<เลข build>`)
+- แอปเช็ก Release ล่าสุดทุกครั้งที่เปิด (หรือกด "ตรวจสอบอัปเดต") ถ้ามีเวอร์ชันใหม่จะโหลด ตรวจ checksum แล้วเปิดตัวติดตั้งของระบบ
+- Android ยอมอัปเดตทับก็ต่อเมื่อ APK เซ็นด้วยกุญแจเดียวกับที่ติดตั้งอยู่ จึงปลอดภัยแม้ไฟล์ถูกแก้
+- repo ต้องเป็น **public** เพื่อให้แอปอ่าน Release ได้โดยไม่ต้องฝัง token ไว้ในแอป
+- ตั้งค่าครั้งเดียว: เพิ่ม secrets `KEYSTORE_BASE64` และ `KEYSTORE_PASSWORD` ใน Settings → Secrets and variables → Actions
+  ถ้ายังไม่มี secrets workflow จะ build ให้แต่ไม่ปล่อย Release
+- ติดตั้ง APK ที่เซ็นด้วยกุญแจนี้ครั้งแรกต้องถอนเวอร์ชัน debug เดิมออกก่อน หลังจากนั้นอัปเดตทับได้เสมอ
+
 ## Build
 
 ต้องใช้ JDK 17 และ Android SDK (เปิดด้วย Android Studio ได้เลย)
@@ -33,7 +43,7 @@
 # APK อยู่ที่ app/build/outputs/apk/debug/app-debug.apk
 ```
 
-เมื่อ push ขึ้น GitHub, `.github/workflows/build.yml` จะ build APK ให้และแนบเป็น artifact
+ถ้า build เองจะเซ็นด้วยกุญแจ debug ของเครื่อง
 
 ## หมายเหตุ
 
