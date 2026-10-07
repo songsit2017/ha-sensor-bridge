@@ -22,8 +22,11 @@ object DebugLog {
     private class Point(val t: Long, val x: Float, val y: Float, val z: Float, val linear: Float)
 
     private const val MAX_FILE_BYTES = 1_000_000L
-    private const val RING_SIZE = 800 // ~6 s at 125 Hz
+    private const val RING_SIZE = 2600 // ~20 s at 125 Hz
     private const val TRACE_COOLDOWN_MS = 2_000L
+    private const val EVENT_TRACE_MS = 8_000L
+    private const val MARK_TRACE_MS = 20_000L
+    private const val QUIET_LINEAR = 0.3f
 
     private val ring = ArrayDeque<Point>(RING_SIZE + 1)
     private val io = Executors.newSingleThreadExecutor()
@@ -68,16 +71,21 @@ object DebugLog {
     }
 
     /** A detected event: logs the numbers behind it plus the raw accelerometer trace leading up to it. */
-    fun event(tag: String, message: String) {
+    fun event(tag: String, message: String) = dump(tag, message, EVENT_TRACE_MS)
+
+    private fun dump(tag: String, message: String, windowMs: Long) {
         if (!enabled) return
         log(tag, message)
         val now = System.currentTimeMillis()
         if (now - lastTraceAt < TRACE_COOLDOWN_MS) return
         lastTraceAt = now
-        val points = synchronized(ring) { ring.toList() }
+        val all = synchronized(ring) { ring.toList() }
+        if (all.isEmpty()) return
+        // Quiet stretches are left out (their gaps show in t_ms) so a long window stays small.
+        val points = all.filter { it.t >= all.last().t - windowMs && it.linear >= QUIET_LINEAR }
         if (points.isEmpty()) return
-        val sb = StringBuilder("trace t_ms x y z linear\n")
-        val t0 = points.last().t
+        val sb = StringBuilder("trace t_ms x y z linear (last ${windowMs / 1000} s, samples under $QUIET_LINEAR omitted)\n")
+        val t0 = all.last().t
         for (p in points) {
             sb.append(p.t - t0).append(' ')
                 .append("%.2f %.2f %.2f %.2f".format(java.util.Locale.US, p.x, p.y, p.z, p.linear)).append('\n')
@@ -89,7 +97,7 @@ object DebugLog {
     fun mark(label: String) {
         if (!enabled) return
         lastTraceAt = 0L
-        event("MARK", label)
+        dump("MARK", label, MARK_TRACE_MS)
     }
 
     fun sizeBytes(): Long = dir?.listFiles()?.sumOf { it.length() } ?: 0L

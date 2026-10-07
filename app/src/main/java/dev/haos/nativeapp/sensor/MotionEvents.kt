@@ -56,6 +56,9 @@ class MotionEvents(
     private var secondPulseEnd = 0L
     private var tapGap = 0L
     private var tapPeak = 0f
+    private var tapRestOk = false
+    private var tapRestMs = 0L
+    private var lastRejectLogAt = 0L
     private var tapGx = 0f
     private var tapGy = 0f
     private var tapGz = 0f
@@ -152,12 +155,19 @@ class MotionEvents(
         val l = s.linear
         if (secondPulseEnd != 0L) {
             // Waiting for quiet after the second pulse; any further motion cancels it.
-            if (l > PULSE_END_LINEAR) { log("TAP_CANCELLED", "motion after the second pulse"); resetTap(); return }
+            if (l > PULSE_END_LINEAR) {
+                if (tapRestOk) log("TAP_CANCELLED", "motion after the second pulse")
+                resetTap()
+                return
+            }
             if (now - secondPulseEnd >= TAP_QUIET_AFTER_MS) {
                 // Tapping a phone lying on a surface doesn't turn it; handling or setting it down does.
                 val tilt = angleDeg(tapGx, tapGy, tapGz, gx, gy, gz)
-                if (tilt > TAP_MAX_TILT_DEG) {
-                    log("TAP_REJECTED", "tilt_deg=%.1f gap_ms=$tapGap peak=%.1f".format(tilt, tapPeak))
+                if (!tapRestOk || tilt > TAP_MAX_TILT_DEG) {
+                    if (now - lastRejectLogAt > 5_000L) {
+                        lastRejectLogAt = now
+                        log("TAP_REJECTED", "rested_ms=$tapRestMs (need $TAP_REST_BEFORE_MS) tilt_deg=%.1f gap_ms=$tapGap peak=%.1f".format(tilt, tapPeak))
+                    }
                     resetTap()
                     lastTapDone = now
                     return
@@ -173,8 +183,13 @@ class MotionEvents(
         if (!inPulse) {
             if (l > TAP_PEAK && now - lastTapDone > TAP_COOLDOWN_MS) {
                 if (firstPulseAt != 0L && now - firstPulseAt !in TAP_MIN_GAP_MS..TAP_MAX_GAP_MS) firstPulseAt = 0L
-                if (firstPulseAt == 0L && !restedBefore) return
-                if (firstPulseAt == 0L) { tapGx = gx; tapGy = gy; tapGz = gz }
+                if (firstPulseAt == 0L) {
+                    // Candidate taps are always shaped so that a refusal can be logged, but only
+                    // ones that start on a resting phone are accepted.
+                    tapRestOk = restedBefore
+                    tapRestMs = if (restSince != 0L) now - restSince else 0L
+                    tapGx = gx; tapGy = gy; tapGz = gz
+                }
                 inPulse = true; pulseStart = now; pulseLastAbove = now; pulseMax = l
             } else if (firstPulseAt != 0L && now - firstPulseAt > TAP_MAX_GAP_MS) {
                 firstPulseAt = 0L
@@ -216,7 +231,7 @@ class MotionEvents(
 
     /** Picked up = resting at least a second, then sustained movement (taps are over in ~150 ms). */
     private fun detectPickUp(now: Long) {
-        if (moveMs >= PICKUP_MOVE_MS && lastRestMs >= PICKUP_REST_MS && !inPulse && firstPulseAt == 0L && secondPulseEnd == 0L) {
+        if (moveMs >= PICKUP_MOVE_MS && lastRestMs >= PICKUP_REST_MS && !(tapRestOk && (inPulse || firstPulseAt != 0L || secondPulseEnd != 0L))) {
             log("PICK_UP", "rested_ms=$lastRestMs moved_ms=${moveMs.toInt()}")
             lastRestMs = 0L
             pickUpUntil = SystemClock.elapsedRealtime() + HOLD_MS
