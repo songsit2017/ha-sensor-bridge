@@ -49,7 +49,7 @@ jobs:
       # Publish only when signed with the real key: an APK signed with a throwaway debug
       # key could never be installed over the previous release.
       - name: Publish release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAVE_KEY == 'true'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.HAVE_KEY == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
