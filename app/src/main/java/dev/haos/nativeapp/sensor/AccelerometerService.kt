@@ -18,7 +18,7 @@ import androidx.core.content.ContextCompat
 import dev.haos.nativeapp.MainActivity
 import dev.haos.nativeapp.data.Settings
 import dev.haos.nativeapp.ha.AccelSensors
-import dev.haos.nativeapp.ha.HaClient
+import dev.haos.nativeapp.ha.HaAuth
 import dev.haos.nativeapp.ha.HaException
 import dev.haos.nativeapp.ha.SensorReading
 import dev.haos.nativeapp.ha.Registrar
@@ -84,7 +84,7 @@ class AccelerometerService : Service() {
         while (scope.isActive) {
             try {
                 val webhookId = Registrar.ensureRegistered(settings)
-                val client = HaClient(settings.baseUrl, settings.token)
+                val client = HaAuth.client(settings)
                 while (scope.isActive) {
                     withTimeoutOrNull(settings.reportIntervalMs) { sendNow.receive() }
                     val sample = latest ?: continue

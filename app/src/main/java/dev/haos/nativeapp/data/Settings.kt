@@ -23,6 +23,19 @@ class Settings(context: Context) {
             if (trimmed.isEmpty()) remove(KEY_TOKEN_ENC) else putString(KEY_TOKEN_ENC, TokenCipher.encrypt(trimmed))
         }
 
+    /** OAuth refresh token from "log in with HA account"; empty when using a long-lived token. */
+    var refreshToken: String
+        get() = prefs.getString(KEY_REFRESH_ENC, null)?.let(TokenCipher::decrypt) ?: ""
+        set(value) = prefs.edit {
+            val trimmed = value.trim()
+            if (trimmed.isEmpty()) remove(KEY_REFRESH_ENC) else putString(KEY_REFRESH_ENC, TokenCipher.encrypt(trimmed))
+        }
+
+    /** Random value sent to /auth/authorize and checked when the browser redirects back. */
+    var pendingAuthState: String?
+        get() = prefs.getString(KEY_AUTH_STATE, null)
+        set(value) = prefs.edit { if (value == null) remove(KEY_AUTH_STATE) else putString(KEY_AUTH_STATE, value) }
+
     /** Webhook id returned by /api/mobile_app/registrations; null until registered. */
     var webhookId: String?
         get() = prefs.getString(KEY_WEBHOOK_ID, null)
@@ -49,7 +62,8 @@ class Settings(context: Context) {
             prefs.edit { putString(KEY_DEVICE_ID, it) }
         }
 
-    val isConfigured: Boolean get() = baseUrl.isNotEmpty() && token.isNotEmpty()
+    val isConfigured: Boolean
+        get() = baseUrl.isNotEmpty() && (refreshToken.isNotEmpty() || token.isNotEmpty())
 
     fun clearRegistration() = prefs.edit {
         remove(KEY_WEBHOOK_ID)
@@ -59,6 +73,8 @@ class Settings(context: Context) {
     private companion object {
         const val KEY_BASE_URL = "base_url"
         const val KEY_TOKEN_ENC = "token_enc"
+        const val KEY_REFRESH_ENC = "refresh_token_enc"
+        const val KEY_AUTH_STATE = "auth_state"
         const val KEY_WEBHOOK_ID = "webhook_id"
         const val KEY_SENSOR_VERSION = "sensor_set_version"
         const val KEY_INTERVAL = "report_interval_ms"

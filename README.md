@@ -5,7 +5,12 @@
 
 ## ทำงานยังไง
 
-1. ใส่ URL ของ HA กับ Long-lived access token (สร้างที่ HA → โปรไฟล์ → Security) token เก็บแบบเข้ารหัสด้วยกุญแจใน Android Keystore
+1. ใส่ URL ของ HA แล้วกด "เข้าสู่ระบบด้วยบัญชี HA" แอปเปิดหน้าล็อกอินของ HA ในเบราว์เซอร์ (OAuth2 แบบเดียวกับ Companion:
+   `/auth/authorize` แล้วแลก code ที่ `/auth/token`) แต่ละคนล็อกอินด้วย user ของตัวเอง ไม่ต้องสร้าง token
+   access token หมดอายุเร็ว แอปใช้ refresh token ต่ออายุเอง ทั้งหมดเก็บเข้ารหัสด้วยกุญแจใน Android Keystore
+   (ตัวเลือกขั้นสูง: ใช้ Long-lived access token แทนได้)
+   - `client_id` ของ OAuth คือ `auth-client.html` ใน repo นี้ ซึ่งประกาศ redirect `hasensorbridge://auth-callback`
+     HA ต้องเข้าถึงไฟล์นี้ได้ทางอินเทอร์เน็ต จึงต้องเป็น repo public
 2. แอปลงทะเบียนมือถือกับ integration `mobile_app` (`POST /api/mobile_app/registrations`) ได้ `webhook_id`
    มือถือจะขึ้นเป็นอุปกรณ์แยกต่างหากจาก Companion
 3. Foreground service อ่าน accelerometer ด้วย `SensorManager` แล้วส่งเข้า HA ทาง

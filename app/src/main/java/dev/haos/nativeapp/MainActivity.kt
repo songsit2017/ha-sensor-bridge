@@ -1,5 +1,6 @@
 package dev.haos.nativeapp
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -31,6 +32,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Cold start via the login redirect (the process was killed while the browser was open).
+        if (savedInstanceState == null) intent?.data?.let(vm::handleAuthCallback)
         setContent {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
                 Surface {
@@ -40,6 +43,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    // singleTask: the login redirect from the browser arrives here.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.data?.let(vm::handleAuthCallback)
     }
 }
 

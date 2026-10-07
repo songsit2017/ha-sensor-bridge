@@ -1,9 +1,12 @@
 package dev.haos.nativeapp.ui
 
 import android.app.Application
+import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.haos.nativeapp.data.Settings
+import dev.haos.nativeapp.ha.HaAuth
 import dev.haos.nativeapp.ha.HaClient
 import dev.haos.nativeapp.ha.Registrar
 import dev.haos.nativeapp.update.InstallResult
@@ -13,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 sealed interface UpdateState {
     data object Idle : UpdateState
@@ -71,16 +75,68 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
-    /** Validates URL + token, registers the phone with mobile_app, then saves. */
+    private fun normalizeUrl(raw: String) = raw.trim().trimEnd('/')
+
+    /** Opens HA's own login page in the browser; the result returns through [handleAuthCallback]. */
+    fun startLogin(baseUrl: String) {
+        val url = normalizeUrl(baseUrl)
+        if (url != settings.baseUrl) settings.clearRegistration()
+        settings.baseUrl = url
+        val state = UUID.randomUUID().toString()
+        settings.pendingAuthState = state
+        _error.value = null
+        try {
+            getApplication<Application>().startActivity(
+                Intent(Intent.ACTION_VIEW, HaAuth.authorizeUrl(url, state)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            _error.value = "เปิดหน้าล็อกอินไม่ได้: ${e.message}"
+        }
+    }
+
+    /** Called when the browser redirects to hasensorbridge://auth-callback?code=...&state=... */
+    fun handleAuthCallback(uri: Uri) {
+        if (uri.scheme != HaAuth.REDIRECT_SCHEME) return
+        val expected = settings.pendingAuthState
+        settings.pendingAuthState = null
+        val code = uri.getQueryParameter("code")
+        if (expected == null || uri.getQueryParameter("state") != expected || code == null) {
+            _error.value = "ล็อกอินไม่สำเร็จ: ข้อมูลตอบกลับจาก HA ไม่ถูกต้อง"
+            return
+        }
+        viewModelScope.launch {
+            _busy.value = true
+            _error.value = null
+            try {
+                val tokens = HaAuth.exchangeCode(settings.baseUrl, code)
+                settings.token = ""
+                settings.refreshToken = tokens.refreshToken ?: throw IllegalStateException("HA ไม่ส่ง refresh token")
+                val client = HaAuth.client(settings)
+                client.ping()
+                Registrar.ensureRegistered(settings)
+                _configured.value = true
+            } catch (e: Exception) {
+                settings.refreshToken = ""
+                HaAuth.forget()
+                _error.value = "ล็อกอินไม่สำเร็จ: ${e.message}"
+            } finally {
+                _busy.value = false
+            }
+        }
+    }
+
+    /** Advanced: connect with a long-lived access token instead of logging in. */
     fun connect(baseUrl: String, token: String) {
         viewModelScope.launch {
             _busy.value = true
             _error.value = null
             try {
-                val url = baseUrl.trim().trimEnd('/')
+                val url = normalizeUrl(baseUrl)
                 HaClient(url, token.trim()).ping()
                 if (url != settings.baseUrl) settings.clearRegistration()
                 settings.baseUrl = url
+                settings.refreshToken = ""
+                HaAuth.forget()
                 settings.token = token
                 Registrar.ensureRegistered(settings)
                 _configured.value = true
@@ -94,6 +150,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun signOut() {
         settings.token = ""
+        settings.refreshToken = ""
+        HaAuth.forget()
         settings.clearRegistration()
         _configured.value = false
     }

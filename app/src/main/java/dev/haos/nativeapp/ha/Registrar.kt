@@ -8,7 +8,7 @@ import dev.haos.nativeapp.data.Settings
 object Registrar {
 
     suspend fun ensureRegistered(settings: Settings): String {
-        val client = HaClient(settings.baseUrl, settings.token)
+        val client = HaAuth.client(settings)
         val webhookId = settings.webhookId ?: client.registerDevice(
             deviceId = settings.deviceId,
             deviceName = Build.MODEL,

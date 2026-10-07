@@ -21,13 +21,16 @@ data class Registration(val webhookId: String)
 class HaException(message: String) : IOException(message)
 
 /**
- * Talks to Home Assistant's REST API (with a long-lived access token) and to the
+ * Talks to Home Assistant's REST API (bearer token from [tokenProvider]) and to the
  * mobile_app webhook (which needs no token once the device is registered).
  */
 class HaClient(
     private val baseUrl: String,
-    private val token: String,
+    private val tokenProvider: suspend () -> String,
 ) {
+    /** Fixed token, e.g. a long-lived access token. */
+    constructor(baseUrl: String, token: String) : this(baseUrl, { token })
+
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
@@ -82,14 +85,14 @@ class HaClient(
     }
 
     private suspend fun get(path: String): String = execute(
-        Request.Builder().url(baseUrl + path).header("Authorization", "Bearer $token").get().build()
+        Request.Builder().url(baseUrl + path).header("Authorization", "Bearer ${tokenProvider()}").get().build()
     )
 
     private suspend fun post(path: String, body: JsonObject, auth: Boolean): String {
         val builder = Request.Builder()
             .url(baseUrl + path)
             .post(json.encodeToString(JsonObject.serializer(), body).toRequestBody(jsonType))
-        if (auth) builder.header("Authorization", "Bearer $token")
+        if (auth) builder.header("Authorization", "Bearer ${tokenProvider()}")
         return execute(builder.build())
     }
 
