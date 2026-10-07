@@ -59,6 +59,7 @@ class AccelerometerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            Settings(this).reportingEnabled = false // the user stopped it: don't restart on boot
             stopSelf()
             return START_NOT_STICKY
         }
@@ -69,6 +70,7 @@ class AccelerometerService : Service() {
         _lastError.value = null
 
         val settings = Settings(this)
+        settings.reportingEnabled = true
         scope.launch {
             AccelerometerReader(this@AccelerometerService).samples().collect { s ->
                 latest = s
@@ -197,7 +199,9 @@ class AccelerometerService : Service() {
         fun start(context: Context) =
             ContextCompat.startForegroundService(context, Intent(context, AccelerometerService::class.java))
 
-        fun stop(context: Context) =
+        fun stop(context: Context) {
+            Settings(context).reportingEnabled = false
             context.stopService(Intent(context, AccelerometerService::class.java))
+        }
     }
 }

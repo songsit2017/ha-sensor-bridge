@@ -1,0 +1,57 @@
+package dev.haos.nativeapp.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import dev.haos.nativeapp.sensor.BatterySettings
+
+@Composable
+fun BatteryCard() {
+    val context = LocalContext.current
+    var exempt by remember { mutableStateOf(BatterySettings.isExempt(context)) }
+    val vendor = remember { BatterySettings.detectVendor() }
+
+    // Re-check when returning from the system dialog or settings page.
+    LifecycleResumeEffect(Unit) {
+        exempt = BatterySettings.isExempt(context)
+        onPauseOrDispose { }
+    }
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("กันระบบปิดแอปตอนประหยัดแบต", style = MaterialTheme.typography.titleMedium)
+            if (exempt) {
+                Text("ยกเว้นการประหยัดแบตแล้ว แอปทำงานเบื้องหลังได้ต่อเนื่อง")
+            } else {
+                Text(
+                    "ระบบอาจหยุดแอปตอนปิดจอหรือประหยัดแบต ค่าที่ส่งเข้า HA จะหยุดไป",
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Button(onClick = { BatterySettings.requestExemption(context) }) { Text("ขอยกเว้นการประหยัดแบต") }
+            }
+            vendor?.let {
+                Text("เครื่อง ${it.label} มีตัวจำกัดเพิ่มอีกชั้น", style = MaterialTheme.typography.titleSmall)
+                Text(it.steps, style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = { BatterySettings.openVendorSettings(context, it) }) {
+                    Text("เปิดหน้าตั้งค่าของ ${it.label.substringBefore(' ')}")
+                }
+            }
+            OutlinedButton(onClick = { BatterySettings.openAppInfo(context) }) { Text("เปิดหน้าข้อมูลแอป") }
+        }
+    }
+}

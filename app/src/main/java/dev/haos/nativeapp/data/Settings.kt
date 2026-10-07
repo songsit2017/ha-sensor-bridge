@@ -91,6 +91,7 @@ class Settings(context: Context) {
         const val KEY_SENSOR_VERSION = "sensor_set_version"
         const val KEY_INTERVAL = "report_interval_ms"
         const val KEY_THRESHOLD = "motion_threshold"
+        const val KEY_REPORTING = "reporting_enabled"
         const val KEY_DEVICE_NAME = "device_name"
         const val KEY_SYNCED_NAME = "synced_device_name"
         const val KEY_DEVICE_ID = "device_id"
